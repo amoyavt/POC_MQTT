@@ -1,0 +1,157 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "IoT Architecture Monitoring",
+    "tags": ["iot", "mqtt", "kafka"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Container Status Overview",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(container_status)",
+            "legendFormat": "Running Containers"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "red",
+                  "value": 0
+                },
+                {
+                  "color": "yellow",
+                  "value": 5
+                },
+                {
+                  "color": "green",
+                  "value": 8
+                }
+              ]
+            }
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": 2,
+        "title": "Service Health Status",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "container_status",
+            "legendFormat": "{{container_name}}"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        }
+      },
+      {
+        "id": 3,
+        "title": "Container CPU Usage",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "container_cpu_usage_percent",
+            "legendFormat": "{{container_name}}"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        }
+      },
+      {
+        "id": 4,
+        "title": "Container Memory Usage",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "container_memory_usage_bytes / 1024 / 1024",
+            "legendFormat": "{{container_name}} (MB)"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        }
+      },
+      {
+        "id": 5,
+        "title": "Container Restart Count",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "container_restart_count",
+            "legendFormat": "{{container_name}}"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 16
+        }
+      },
+      {
+        "id": 6,
+        "title": "Health Check Response Times",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(health_check_duration_seconds_sum[5m]) / rate(health_check_duration_seconds_count[5m])",
+            "legendFormat": "{{service}}"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 24
+        }
+      },
+      {
+        "id": 7,
+        "title": "Service Health Checks",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(service_health_checks_total[5m])",
+            "legendFormat": "{{service}} - {{status}}"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 24
+        }
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "10s"
+  }
+}
