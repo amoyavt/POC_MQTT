@@ -8,25 +8,25 @@ This document provides a comprehensive overview of the MQTT Architecture Proof o
 
 ```mermaid
 graph TD
-    subgraph "**IoT Devices**"
-        A["**F2 Smart Controllers**"] -->|MQTT| B("**MQTT Broker**")
+    subgraph "IoT Devices"
+        A["F2 Smart Controllers"] -->|MQTT| B("MQTT Broker")
     end
 
-    subgraph "**Data Pipeline**"
-        B --> C{"**MQTT-Kafka Connector**"}
-        C -->|raw_iot_data| D("**Kafka**")
-        D --> E{"**Data Processor**"}
+    subgraph "Data Pipeline"
+        B --> C{"MQTT-Kafka Connector"}
+        C -->|raw_iot_data| D("Kafka")
+        D --> E{"Data Processor"}
         E -->|decoded_iot_data| D
-        D --> F{"**Kafka-TimescaleDB Sink**"}
+        D --> F{"Kafka-TimescaleDB Sink"}
     end
 
-    subgraph "**Data Stores**"
-        E --> G["**PostgreSQL**"]
-        F --> H("**TimescaleDB**")
+    subgraph "Data Stores"
+        E --> G["PostgreSQL"]
+        F --> H("TimescaleDB")
     end
 
-    subgraph "**Monitoring**"
-        M("**Prometheus**") --> N{"**Grafana**"}
+    subgraph "Monitoring"
+        M("Prometheus") --> N{"Grafana"}
         B -->|Metrics| M
         C -->|Metrics| M
         D -->|Metrics| M
@@ -36,16 +36,16 @@ graph TD
         H -->|Metrics| M
     end
 
-    style A fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
-    style B fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
-    style C fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
-    style D fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
-    style E fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
-    style F fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
-    style G fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
-    style H fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
-    style M fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
-    style N fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
+    style A fill:#fff,stroke:#333,stroke-width:2px
+    style B fill:#fff,stroke:#333,stroke-width:2px
+    style C fill:#fff,stroke:#333,stroke-width:2px
+    style D fill:#fff,stroke:#333,stroke-width:2px
+    style E fill:#fff,stroke:#333,stroke-width:2px
+    style F fill:#fff,stroke:#333,stroke-width:2px
+    style G fill:#fff,stroke:#333,stroke-width:2px
+    style H fill:#fff,stroke:#333,stroke-width:2px
+    style M fill:#fff,stroke:#333,stroke-width:2px
+    style N fill:#fff,stroke:#333,stroke-width:2px
 ```
 
 ## Core Components

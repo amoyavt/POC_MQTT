@@ -1,12 +1,10 @@
-# A Deep Dive into Sensor Data Messages in MQTT Topics
+# Data Models
 
 ## Overview
 
 The database contains devices that can function as controllers or as devices that connect to controllers. Each device is created from a `DeviceTemplate`, and each `DeviceTemplate` has data points that help decode the raw data.
 
-## Data Models
-
-### Device
+## Device
 
 ```csharp
 public class Device
@@ -26,7 +24,7 @@ public class Device
 }
 ```
 
-### DeviceTemplate
+## DeviceTemplate
 
 ```csharp
 public class DeviceTemplate
@@ -45,7 +43,7 @@ public class DeviceTemplate
 }
 ```
 
-### DataPoint
+## DataPoint
 
 ```csharp
 public class DataPoint
@@ -68,9 +66,6 @@ public class DataPoint
     public DeviceManagementConstants.ChartType HistoricalChart { get; set; }
 }
 ```
-## Device Identification
-
-The MQTT topics contain the MAC address, which is unique. Using the MAC address, we can retrieve the corresponding device ID.
 
 ## Controller Architecture
 
@@ -109,49 +104,3 @@ public class Pin
     public virtual Device Device { get; set; } = null!;
 }
 ```
-
-## MQTT Message Format
-
-The MQTT broker receives messages with the following topic structure:
-
-```
-cmnd/f2-<MAC_ADDR>/<MODE>/<CONNECTOR>/sensor-<N>
-```
-
-With a JSON payload:
-
-```json
-{ 
-  "timestamp": "2023-05-25 15:13:10.543400", 
-  "data": "<hex value>" 
-}
-```
-
-Where `<hex value>` is a string containing a hexadecimal number, for example:
-```
-"01 03 0C 32 30 32 30 36 32 38 30 31 30 31 5B 18 28 01"
-```
-
-### Topic Structure Explanation
-
-- **`<MAC_ADDR>`**: Provides the MAC address of the controller
-- **`<CONNECTOR>`**: Provides the connector number
-- **`<N>`**: Pin position where a unique device is connected
-
-Each device belongs to a unique device template, and the device template contains several data points.
-
-## Data Processing Workflow
-
-We use the list of data points to generate decoded data, creating one decoded record from each encoded data entry.
-
-### Decoding Process
-
-1. **Data Extraction**: The data point contains information to extract a hexadecimal number using:
-   - `Offset`: Starting position in bytes
-   - `Length`: Number of bytes to extract
-
-2. **Data Decoding**: The extracted number is decoded using the `DataFormat` specified in the data point:
-   - `Int16`: Signed 16-bit integer
-   - `Uint16`: Unsigned 16-bit integer
-
-3. **Data Storage**: The decoded number is stored in the `iot_measurements` table in the `value` column.

@@ -215,19 +215,19 @@ for topic_partition, messages in message_batch.items():
 ### Service Management
 ```bash
 # View sink logs
-make logs-sink
+docker-compose logs -f kafka-timescale-sink
 
 # Restart sink only
 docker-compose restart kafka-timescale-sink
 
 # Check TimescaleDB data
-make db-timescale
+docker exec -it timescale-db psql -U ts_user -d timeseries
 ```
 
 ### Database Operations
 ```bash
 # Access TimescaleDB
-make db-timescale
+docker exec -it timescale-db psql -U ts_user -d timeseries
 
 # Query recent measurements
 SELECT * FROM iot_measurements 

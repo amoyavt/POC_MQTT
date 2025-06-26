@@ -147,13 +147,13 @@ resources:
 ### Service Management
 ```bash
 # View connector logs
-make logs-connector
+docker-compose logs -f mqtt-kafka-connector
 
 # Restart connector only  
 docker-compose restart mqtt-kafka-connector
 
 # Debug MQTT messages
-make mqtt-monitor
+mosquitto_sub -h localhost -t "cmnd/#" -v
 ```
 
 ### Troubleshooting
@@ -173,15 +173,15 @@ make mqtt-monitor
    # Check Kafka status
    docker-compose ps kafka
    # Verify topic exists
-   make kafka-topics
+   docker exec kafka kafka-topics --bootstrap-server localhost:9092 --list
    ```
 
 3. **No Messages Processing**
    ```bash
    # Check MQTT subscription
-   make mqtt-monitor
+   mosquitto_sub -h localhost -t "cmnd/#" -v
    # Check Kafka production
-   make kafka-raw
+   docker exec kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic raw_iot_data --from-beginning
    ```
 
 ## Dependencies

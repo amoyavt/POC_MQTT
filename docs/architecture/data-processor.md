@@ -245,19 +245,19 @@ resources:
 ### Service Management
 ```bash
 # View processor logs
-make logs-processor
+docker-compose logs -f data-processor
 
 # Restart processor only
 docker-compose restart data-processor
 
 # Check processed data
-make kafka-decoded
+docker exec kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic decoded_iot_data --from-beginning
 ```
 
 ### Database Operations
 ```bash
 # Access device parameters database
-make db-params
+docker exec -it device-params-db psql -U iot_user -d device_params
 
 # Query device parameters
 SELECT * FROM device_parameters WHERE device_id = 'f2-e4fd45f654be';

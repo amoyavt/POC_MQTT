@@ -31,19 +31,19 @@ The system includes comprehensive monitoring with:
 
 ```bash
 # Complete setup with monitoring
-make full-setup
+docker-compose up -d && docker-compose -f monitoring/docker-compose.monitoring.yml up -d
 
 # Check system status
-make status
+docker-compose ps && docker-compose -f monitoring/docker-compose.monitoring.yml ps
 
 # Monitor health
-make health
+curl http://localhost:8000/health
 
 # View logs
-make logs
+docker-compose logs -f
 
 # Stop everything cleanly
-make clean
+docker-compose down && docker-compose -f monitoring/docker-compose.monitoring.yml down
 ```
 
 ## Service Ports
@@ -62,55 +62,55 @@ make clean
 
 ```bash
 # PostgreSQL (device parameters)
-make db-params
+docker exec -it device-params-db psql -U iot_user -d device_params
 
 # TimescaleDB (time-series data)
-make db-timescale
+docker exec -it timescale-db psql -U ts_user -d timeseries
 ```
 
 ## Kafka Monitoring
 
 ```bash
 # List Kafka topics
-make kafka-topics
+docker exec kafka kafka-topics --bootstrap-server localhost:9092 --list
 
 # View raw IoT data
-make kafka-raw
+docker exec kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic raw_iot_data --from-beginning
 
 # View processed data
-make kafka-decoded
+docker exec kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic decoded_iot_data --from-beginning
 ```
 
 ## Log Monitoring
 
 ```bash
 # All service logs
-make logs
+docker-compose logs -f
 
 # Individual service logs
-make logs-connector    # MQTT-Kafka connector
-make logs-processor    # Data processor
-make logs-sink         # TimescaleDB sink
-make logs-simulator    # F2 device simulator
+docker-compose logs -f mqtt-kafka-connector
+docker-compose logs -f data-processor
+docker-compose logs -f kafka-timescale-sink
+docker-compose logs -f f2-simulator
 ```
 
 ## Documentation
 
-Comprehensive documentation is available in the `@doc/` directory:
+Comprehensive documentation is available in the `docs/` directory:
 
-### Architecture Documentation (`@doc/architecture/`)
+### Architecture Documentation (`docs/architecture/`)
 
-- **[overview.md](@doc/architecture/overview.md)** - Complete system architecture overview
-- **[mqtt-kafka-connector.md](@doc/architecture/mqtt-kafka-connector.md)** - MQTT-Kafka bridge service
-- **[data-processor.md](@doc/architecture/data-processor.md)** - Data transformation service
-- **[kafka-timescale-sink.md](@doc/architecture/kafka-timescale-sink.md)** - Data persistence service
-- **[f2-simulator.md](@doc/architecture/f2-simulator.md)** - IoT device simulator
+- **[overview.md](docs/architecture/overview.md)** - Complete system architecture overview
+- **[mqtt-kafka-connector.md](docs/architecture/mqtt-kafka-connector.md)** - MQTT-Kafka bridge service
+- **[data-processor.md](docs/architecture/data-processor.md)** - Data transformation service
+- **[kafka-timescale-sink.md](docs/architecture/kafka-timescale-sink.md)** - Data persistence service
+- **[f2-simulator.md](docs/architecture/f2-simulator.md)** - IoT device simulator
 
-### Monitoring Documentation (`@doc/monitoring/`)
+### Monitoring Documentation (`docs/monitoring/`)
 
-- **[overview.md](@doc/monitoring/overview.md)** - Complete monitoring stack overview
-- **[grafana-setup.md](@doc/monitoring/grafana-setup.md)** - Grafana configuration and dashboards
-- **[health-monitor.md](@doc/monitoring/health-monitor.md)** - Health monitoring service API
+- **[overview.md](docs/monitoring/overview.md)** - Complete monitoring stack overview
+- **[grafana-setup.md](docs/monitoring/grafana-setup.md)** - Grafana configuration and dashboards
+- **[health-monitor.md](docs/monitoring/health-monitor.md)** - Health monitoring service API
 
 ## Data Flow
 
@@ -144,7 +144,7 @@ docker-compose ps
 curl http://localhost:8000/health/{service_name}
 
 # Monitor MQTT messages
-make mqtt-monitor
+mosquitto_sub -h localhost -t "cmnd/#" -v
 
 # Check Kafka consumer lag
 docker exec kafka kafka-consumer-groups.sh --bootstrap-server localhost:9092 --list
@@ -174,7 +174,7 @@ docker exec kafka kafka-consumer-groups.sh --bootstrap-server localhost:9092 --l
 # Note: Add specific commands if project has linting setup
 
 # Test data pipeline end-to-end
-make full-setup && sleep 30 && make health
+docker-compose up -d && sleep 30 && curl http://localhost:8000/health
 ```
 
 ## Common Tasks

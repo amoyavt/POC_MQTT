@@ -294,13 +294,13 @@ self.mqtt_client.publish(topic, json.dumps(data))
 ### Service Management
 ```bash
 # View simulator logs
-make logs-simulator
+docker-compose logs -f f2-simulator
 
 # Restart simulator only
 docker-compose restart f2-simulator
 
 # Monitor MQTT messages
-make mqtt-monitor
+mosquitto_sub -h localhost -t "cmnd/#" -v
 ```
 
 ### Configuration Adjustments
@@ -346,19 +346,19 @@ paho-mqtt==1.6.1
 mosquitto_sub -h localhost -t "cmnd/#" -v
 
 # Check message format
-make mqtt-monitor | head -20
+mosquitto_sub -h localhost -t "cmnd/#" -v | head -20
 ```
 
 ### Data Pipeline Testing
 ```bash
 # Check if messages reach Kafka
-make kafka-raw
+docker exec kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic raw_iot_data --from-beginning
 
 # Verify processing
-make kafka-decoded
+docker exec kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic decoded_iot_data --from-beginning
 
 # Validate database storage
-make db-timescale
+docker exec -it timescale-db psql -U ts_user -d timeseries
 ```
 
 ## Performance Characteristics
@@ -395,16 +395,16 @@ resources:
 2. **No Messages Generated**
    ```bash
    # Check simulator logs
-   make logs-simulator
+   docker-compose logs -f f2-simulator
    
    # Verify MQTT broker is receiving messages
-   make mqtt-monitor
+   mosquitto_sub -h localhost -t "cmnd/#" -v
    ```
 
 3. **Message Format Issues**
    ```bash
    # Validate JSON format
-   make mqtt-monitor | jq '.'
+   mosquitto_sub -h localhost -t "cmnd/#" -v | jq '.'
    ```
 
 ## Customization

@@ -8,40 +8,40 @@ The MQTT Architecture POC includes a comprehensive monitoring stack designed to 
 
 ```mermaid
 graph TD
-    subgraph "**Monitored Services**"
-        A["**IoT Services**"] -->|Metrics| B("**Prometheus**")
-        C["**Health APIs**"] -->|Health Checks| B
+    subgraph "Monitored Services"
+        A["IoT Services"] -->|Metrics| B("Prometheus")
+        C["Health APIs"] -->|Health Checks| B
     end
 
-    subgraph "**Monitoring Core**"
-        B --> D{"**Time-Series DB**"}
-        B --> E["**Grafana**"]
+    subgraph "Monitoring Core"
+        B --> D{"Time-Series DB"}
+        B --> E["Grafana"]
     end
 
-    subgraph "**Data Sources**"
-        F["**cAdvisor**"] --> B
-        G["**Node Exporter**"] --> B
-        H["**Health Monitor**"] --> B
+    subgraph "Data Sources"
+        F["cAdvisor"] --> B
+        G["Node Exporter"] --> B
+        H["Health Monitor"] --> B
     end
 
-    subgraph "**User Interface**"
-        E --> I{"**Dashboards**"}
+    subgraph "User Interface"
+        E --> I{"Dashboards"}
     end
 
-    subgraph "**Alerting (Future)**"
-        E --> J("**Alertmanager**")
+    subgraph "Alerting (Future)"
+        E --> J("Alertmanager")
     end
 
-    style A fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
-    style B fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
-    style C fill:#fff,stroke:#333,stroke-weight:2px,font-weight:bold
-    style D fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
-    style E fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
-    style F fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
-    style G fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
-    style H fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
-    style I fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
-    style J fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
+    style A fill:#fff,stroke:#333,stroke-width:2px
+    style B fill:#fff,stroke:#333,stroke-width:2px
+    style C fill:#fff,stroke:#333,stroke-width:2px
+    style D fill:#fff,stroke:#333,stroke-width:2px
+    style E fill:#fff,stroke:#333,stroke-width:2px
+    style F fill:#fff,stroke:#333,stroke-width:2px
+    style G fill:#fff,stroke:#333,stroke-width:2px
+    style H fill:#fff,stroke:#333,stroke-width:2px
+    style I fill:#fff,stroke:#333,stroke-width:2px
+    style J fill:#fff,stroke:#333,stroke-width:2px
 ```
 
 ## Core Monitoring Components
@@ -116,18 +116,28 @@ services:
 ```
 
 ### Quick Start Commands
+
+To start the complete system with monitoring run:
+
 ```bash
-# Start complete system with monitoring
-make full-setup
+docker-compose up -d && docker-compose -f monitoring/docker-compose.monitoring.yml up -d
+```
 
-# Start only monitoring stack
-make monitoring-up
+To start only monitoring stack run:
 
-# Check system status
-make status
+```bash
+docker-compose -f monitoring/docker-compose.monitoring.yml up -d
+```
+To check system status run:
 
-# Access monitoring endpoints
-make health
+```bash
+docker-compose ps && docker-compose -f monitoring/docker-compose.monitoring.yml ps
+```
+
+To monitor health run:
+
+```bash
+curl http://localhost:8000/health
 ```
 
 ## Access Points
@@ -309,80 +319,79 @@ groups:
 ## Operational Procedures
 
 ### Daily Monitoring Tasks
+
+To check overall system health run:
+
 ```bash
-# Check overall system health
-make health
+curl http://localhost:8000/health
+```
 
-# View recent logs for any errors
-make logs | grep ERROR
+To view recent logs for any errors run:
 
-# Check resource usage
+```bash
+docker-compose logs -f | grep ERROR
+```
+
+To check resource usage run:
+
+```bash
 curl http://localhost:8080/containers/
 ```
 
 ### Weekly Monitoring Tasks
+
+To review Grafana dashboards for trends access: http://localhost:3000
+
+To check disk usage growth run:
+
 ```bash
-# Review Grafana dashboards for trends
-# Access: http://localhost:3000
-
-# Check disk usage growth
 df -h
+```
 
-# Review retention policies
+To review retention policies run:
+
+```bash
 docker system df
 ```
 
 ### Troubleshooting Commands
+
+To check service-specific health run:
+
 ```bash
-# Service-specific health checks
 curl http://localhost:8000/health/kafka
 curl http://localhost:8000/health/mosquitto
-
-# Container resource usage
-docker stats
-
-# Check Prometheus targets
-curl http://localhost:9090/api/v1/targets
 ```
 
-## Performance Monitoring
+To check container resource usage run:
 
-### Key Performance Indicators (KPIs)
+```bash
+docker stats
+```
 
-1. **System Availability**
-   - Target: >99% uptime
-   - Measurement: Service health checks
+To check Prometheus targets run:
 
-2. **Message Processing Rate**
-   - Target: >100 messages/second
-   - Measurement: Kafka throughput metrics
-
-3. **End-to-End Latency**
-   - Target: <1 second MQTT to TimescaleDB
-   - Measurement: Timestamp tracking
-
-4. **Resource Utilization**
-   - Target: <80% CPU, <80% Memory
-   - Measurement: cAdvisor metrics
-
-### Performance Baselines
-- **CPU Usage**: 5-15% normal operation
-- **Memory Usage**: 2-4GB total system
-- **Disk I/O**: <100 MB/s sustained
-- **Network Traffic**: 1-10 MB/s typical
+```bash
+curl http://localhost:9090/api/v1/targets
+```
 
 ## Log Aggregation
 
 ### Centralized Logging
-```bash
-# View all service logs
-make logs
 
-# Service-specific logs
-make logs-connector
-make logs-processor
-make logs-sink
-make logs-simulator
+To view all service logs run:
+
+```bash
+docker-compose logs -f
+```
+
+To view service-specific logs run:
+
+```bash
+docker-compose logs -f mqtt-kafka-connector
+docker-compose logs -f data-processor
+docker-compose logs -f kafka-timescale-sink
+docker-compose logs -f f2-simulator
 ```
 
 ### Log Retention
