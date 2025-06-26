@@ -36,18 +36,6 @@ graph TD
         G -->|Metrics| M
         H -->|Metrics| M
     end
-
-    style A fill:#fff,stroke:#333,stroke-width:2px
-    style B fill:#fff,stroke:#333,stroke-width:2px
-    style C fill:#fff,stroke:#333,stroke-width:2px
-    style D fill:#fff,stroke:#333,stroke-width:2px
-    style ZK fill:#f9f,stroke:#333,stroke-width:2px
-    style E fill:#fff,stroke:#333,stroke-width:2px
-    style F fill:#fff,stroke:#333,stroke-width:2px
-    style G fill:#fff,stroke:#333,stroke-width:2px
-    style H fill:#fff,stroke:#333,stroke-width:2px
-    style M fill:#fff,stroke:#333,stroke-width:2px
-    style N fill:#fff,stroke:#333,stroke-width:2px
 ```
 
 ## Core Components

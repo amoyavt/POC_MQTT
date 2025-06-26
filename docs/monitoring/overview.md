@@ -31,17 +31,6 @@ graph TD
     subgraph "Alerting (Future)"
         E --> J("Alertmanager")
     end
-
-    style A fill:#fff,stroke:#333,stroke-width:2px
-    style B fill:#fff,stroke:#333,stroke-width:2px
-    style C fill:#fff,stroke:#333,stroke-width:2px
-    style D fill:#fff,stroke:#333,stroke-width:2px
-    style E fill:#fff,stroke:#333,stroke-width:2px
-    style F fill:#fff,stroke:#333,stroke-width:2px
-    style G fill:#fff,stroke:#333,stroke-width:2px
-    style H fill:#fff,stroke:#333,stroke-width:2px
-    style I fill:#fff,stroke:#333,stroke-width:2px
-    style J fill:#fff,stroke:#333,stroke-width:2px
 ```
 
 ## Core Monitoring Components

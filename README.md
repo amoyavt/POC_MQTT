@@ -7,60 +7,35 @@ This project is a proof-of-concept for a production-ready IoT data pipeline usin
 The system is designed to ingest, process, and store data from F2 Smart Controller IoT devices. It transforms raw, device-specific MQTT messages into meaningful, decoded data, optimized for time-series analysis.
 
 ```mermaid
-graph TD
-    subgraph "IoT Devices"
-        A["F2 Smart Controllers"] -->|MQTT| B("MQTT Broker")
-    end
-
-    subgraph "Data Pipeline"
-        B --> C{"MQTT-Kafka Connector"}
-        C -->|raw_iot_data| D("Kafka")
-        ZK("Zookeeper") -.->|coordination| D
-        D --> E{"Data Processor"}
-        E -->|decoded_iot_data| D
-        D --> F{"Kafka-TimescaleDB Sink"}
-    end
-
-    subgraph "Data Stores"
-        E --> G["PostgreSQL"]
-        F --> H("TimescaleDB")
-    end
-
-    subgraph "Monitoring"
-        M("Prometheus") --> N{"Grafana"}
-        B -->|Metrics| M
-        C -->|Metrics| M
-        D -->|Metrics| M
-        E -->|Metrics| M
-        F -->|Metrics| M
-        G -->|Metrics| M
-        H -->|Metrics| M
-    end
-
-    style A fill:#fff,stroke:#333,stroke-width:2px
-    style B fill:#fff,stroke:#333,stroke-width:2px
-    style C fill:#fff,stroke:#333,stroke-width:2px
-    style D fill:#fff,stroke:#333,stroke-width:2px
-    style ZK fill:#f9f,stroke:#333,stroke-width:2px
-    style E fill:#fff,stroke:#333,stroke-width:2px
-    style F fill:#fff,stroke:#333,stroke-width:2px
-    style G fill:#fff,stroke:#333,stroke-width:2px
-    style H fill:#fff,stroke:#333,stroke-width:2px
-    style M fill:#fff,stroke:#333,stroke-width:2px
-    style N fill:#fff,stroke:#333,stroke-width:2px
+graph LR
+    A[F2 Devices] -->|MQTT| B[MQTT Broker]
+    B --> C[MQTT-Kafka Connector]
+    C --> D[Kafka]
+    D --> E[Data Processor]
+    E --> D
+    D --> F[Kafka-TimescaleDB Sink]
+    E --> G[(PostgreSQL)]
+    F --> H[(TimescaleDB)]
 ```
 
 ## Containers
 
+### IoT Devices
 -   **F2 Device Simulator**: Simulates IoT devices publishing MQTT messages.
+
+### Data Pipeline
 -   **MQTT Broker (Mosquitto)**: Central message hub for device communications.
 -   **MQTT-Kafka Connector**: Bridges MQTT messages to Kafka topics.
 -   **Zookeeper**: Coordination service for Kafka cluster management.
 -   **Apache Kafka**: Message streaming platform with raw and processed data topics.
--   **PostgreSQL**: Stores device parameters and metadata.
 -   **Data Processor**: Transforms raw data into meaningful measurements.
--   **TimescaleDB**: Time-series database for analytics and storage.
 -   **Kafka-TimescaleDB Sink**: Persists processed data to TimescaleDB.
+
+### Data Stores
+-   **PostgreSQL**: Stores device parameters and metadata.
+-   **TimescaleDB**: Time-series database for analytics and storage.
+
+### Monitoring
 -   **Prometheus**: Metrics collection and storage.
 -   **Grafana**: Visualization dashboards.
 -   **cAdvisor**: Container resource monitoring.
