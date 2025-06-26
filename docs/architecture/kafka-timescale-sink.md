@@ -37,19 +37,18 @@ kafka-timescale-sink:
 
 #### Key Classes and Methods
 
-- **`KafkaTimescaleSink`**: Main service class
-- **`_convert_timestamp()`**: Handles various timestamp formats
-- **`_extract_numeric_value()`**: Converts complex values to numeric
-- **`_prepare_record()`**: Formats data for database insertion
-- **`_insert_batch()`**: Batch insert with error handling
+- **`IotMeasurement`**: A Pydantic model that defines the data structure, handles validation, and data conversion.
+- **`KafkaTimescaleSink`**: The main service class that orchestrates data consumption and persistence.
+- **`_build_insert_statement()`**: Dynamically generates the `INSERT` SQL query from the `IotMeasurement` model.
+- **`_prepare_record()`**: Validates incoming messages against the Pydantic model.
+- **`_insert_batch()`**: Executes the batch insertion into the database.
 
 #### Message Processing Pipeline
 
-1. **Consume**: Read processed messages from Kafka
-2. **Convert**: Transform timestamps and extract numeric values
-3. **Batch**: Accumulate messages for efficient insertion
-4. **Insert**: Batch insert into TimescaleDB hypertable
-5. **Commit**: Acknowledge successful processing
+1.  **Consume**: Reads messages from the `decoded_iot_data` Kafka topic.
+2.  **Validate & Prepare**: Each message is parsed and validated by the `IotMeasurement` Pydantic model. This step also handles data type conversions (e.g., for timestamps and numeric values).
+3.  **Batch**: Valid records are accumulated in a list for efficient batch processing.
+4.  **Insert**: The batch is inserted into the TimescaleDB `iot_measurements` hypertable using a dynamically generated `INSERT` statement.
 
 ## Database Schema
 
@@ -57,175 +56,96 @@ kafka-timescale-sink:
 
 **Table**: `iot_measurements`
 
+The schema is defined in `sql/timescale_init.sql` and is created when the system starts.
+
 ```sql
-CREATE TABLE iot_measurements (
-    timestamp        TIMESTAMPTZ NOT NULL,
-    device_id        VARCHAR(50) NOT NULL,
-    connector_mode   VARCHAR(50),
-    component_type   VARCHAR(50),
-    component_id     VARCHAR(10),
-    value           DECIMAL(15,6),
-    unit            VARCHAR(20),
-    raw_data        JSONB
+CREATE TABLE IF NOT EXISTS iot_measurements (
+    timestamp TIMESTAMPTZ NOT NULL,
+    device_id VARCHAR(50) NOT NULL,
+    connector_mode VARCHAR(50) NOT NULL,
+    component_type VARCHAR(50) NOT NULL,
+    pin_position VARCHAR(10),
+    value DOUBLE PRECISION,
+    unit VARCHAR(20),
+    topic VARCHAR(255),
+    PRIMARY KEY (timestamp, device_id, connector_mode, component_type, pin_position)
 );
 
 -- Convert to hypertable (partitioned by time)
-SELECT create_hypertable('iot_measurements', 'timestamp');
+SELECT create_hypertable('iot_measurements', 'timestamp', if_not_exists => TRUE);
 
--- Create indexes for efficient queries
-CREATE INDEX idx_iot_measurements_device_id ON iot_measurements (device_id, timestamp DESC);
-CREATE INDEX idx_iot_measurements_component ON iot_measurements (component_type, timestamp DESC);
-CREATE INDEX idx_iot_measurements_device_component ON iot_measurements (device_id, component_type, timestamp DESC);
+-- Create indexes for better query performance
+CREATE INDEX IF NOT EXISTS idx_iot_device_id ON iot_measurements (device_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_iot_component ON iot_measurements (component_type, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_iot_mode ON iot_measurements (connector_mode, timestamp DESC);
 ```
 
-### Data Type Conversion
+## Data Validation with Pydantic
 
-#### Timestamp Handling
+Data integrity is enforced by a `pydantic.BaseModel`, which ensures that every record inserted into the database conforms to the expected schema.
+
+### Pydantic Model Definition
+
 ```python
-# Input formats supported:
-# - Unix timestamp (float): 1684681990.5434
-# - ISO string: "2023-05-21T15:13:10.543400"
-# - ISO with timezone: "2023-05-21T15:13:10.543400Z"
+class IotMeasurement(BaseModel):
+    """Pydantic model for an IoT measurement record."""
+    timestamp: datetime
+    device_id: str = Field(..., alias='mac_address')
+    connector_mode: str = Field('unknown', alias='mode')
+    component_type: str = Field('unknown', alias='data_point_label')
+    pin_position: str = Field('-1', alias='pin')
+    value: Optional[float] = None
+    unit: str = ''
+    topic: str = Field('', alias='original_topic')
 
-def _convert_timestamp(self, timestamp):
-    if isinstance(timestamp, (int, float)):
-        return datetime.fromtimestamp(timestamp)
-    elif isinstance(timestamp, str):
-        return datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-    else:
-        return datetime.now()  # Fallback
+    @validator('timestamp', pre=True)
+    def convert_timestamp(cls, v):
+        # ... timestamp conversion logic ...
+
+    @validator('value', pre=True)
+    def convert_value_to_float(cls, v):
+        # ... value conversion logic ...
 ```
 
-#### Value Extraction
-```python
-# Numeric value extraction from various data types:
-# - Primitive numbers: 29.8 → 29.8
-# - Booleans: True → 1.0, False → 0.0
-# - Boolean maps: {"door-1": True, "door-2": False} → 1.0 (count of True)
-# - Complex objects: Extract first numeric value found
-# - Strings: Attempt float conversion
-
-def _extract_numeric_value(self, value):
-    if isinstance(value, (int, float)):
-        return float(value)
-    elif isinstance(value, bool):
-        return float(value)
-    elif isinstance(value, dict):
-        if all(isinstance(v, bool) for v in value.values()):
-            return float(sum(value.values()))  # Count True values
-    # ... additional conversion logic
-```
+This model automatically handles:
+-   **Validation**: Type checking for all fields.
+-   **Alias Mapping**: Maps incoming JSON fields (e.g., `mac_address`) to the model's field names (e.g., `device_id`).
+-   **Data Conversion**: Custom validators handle complex conversions for timestamps and numeric values.
+-   **Default Values**: Provides default values for optional fields.
 
 ## Batch Processing
 
-### Batch Configuration
-- **Default Batch Size**: 100 records
-- **Default Timeout**: 5 seconds
-- **Optimization**: Reduces database round trips
+### Dynamic SQL Generation
 
-### Batch Logic
+The `INSERT` statement is generated dynamically from the `IotMeasurement` model's fields, ensuring it always stays in sync with the data structure.
+
 ```python
-def _should_flush_batch(self):
-    return (
-        len(self.message_batch) >= self.batch_size or
-        (time.time() - self.last_batch_time) >= self.batch_timeout
-    )
+def _build_insert_statement(self) -> str:
+    """Dynamically build the INSERT statement from the Pydantic model."""
+    fields = list(IotMeasurement.__fields__.keys())
+    columns = ', '.join(fields)
+    placeholders = ', '.join(['%s'] * len(fields))
+    return f"INSERT INTO iot_measurements ({columns}) VALUES ({placeholders})"
 ```
 
 ### Batch Insertion
+
+The sink uses `psycopg2.extras.execute_batch` for high-performance batch inserts.
+
 ```python
 # Using psycopg2's execute_batch for efficiency
 execute_batch(
     cursor,
-    """
-    INSERT INTO iot_measurements 
-    (timestamp, device_id, connector_mode, component_type, component_id, value, unit, raw_data)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-    """,
+    self._insert_statement, # The dynamically generated SQL
     records,
     page_size=self.batch_size
 )
 ```
 
-## Data Transformation Examples
-
-### Example 1: Temperature Sensor Data
-
-**Input** (from `decoded_iot_data`):
-```json
-{
-  "timestamp": 1684681990.5434,
-  "device_id": "f2-e4fd45f654be",
-  "connector_mode": "sensor-mode",
-  "component_type": "sensor",
-  "component_id": "3",
-  "value": 29.8,
-  "unit": "celsius",
-  "original_topic": "cmnd/f2-e4fd45f654be/sensor-mode/J1/sensor-3",
-  "raw_data": {"timestamp": "2023-05-25 15:13:10.543400", "data": "0x12A"}
-}
-```
-
-**Output** (TimescaleDB record):
-```sql
-INSERT INTO iot_measurements VALUES (
-    '2023-05-21 15:13:10.543400+00',  -- timestamp
-    'f2-e4fd45f654be',                -- device_id
-    'sensor-mode',                    -- connector_mode
-    'sensor',                         -- component_type
-    '3',                              -- component_id
-    29.8,                             -- value
-    'celsius',                        -- unit
-    '{"timestamp": "2023-05-25 15:13:10.543400", "data": "0x12A"}'  -- raw_data
-);
-```
-
-### Example 2: Door Sensor Data
-
-**Input**:
-```json
-{
-  "timestamp": 1684681990.5434,
-  "device_id": "f2-e4fd45f654be",
-  "connector_mode": "access-control-mode",
-  "component_type": "door-sensors",
-  "component_id": null,
-  "value": {"door-sensor-1": false, "door-sensor-2": true},
-  "unit": "state",
-  "raw_data": {"timestamp": "2023-05-26 18:34:04", "door-sensor-1": false, "door-sensor-2": true}
-}
-```
-
-**Output**:
-```sql
-INSERT INTO iot_measurements VALUES (
-    '2023-05-21 15:13:10.543400+00',
-    'f2-e4fd45f654be',
-    'access-control-mode',
-    'door-sensors',
-    NULL,
-    1.0,  -- Count of True values (1 door open)
-    'state',
-    '{"timestamp": "2023-05-26 18:34:04", "door-sensor-1": false, "door-sensor-2": true}'
-);
-```
-
 ## Error Handling
 
-### Database Connection Errors
-- Automatic reconnection on connection loss
-- Connection validation before operations
-- Graceful degradation with logging
-
-### Batch Processing Errors
-- Clear failed batches to prevent infinite retry
-- Log detailed error information
-- Continue processing subsequent batches
-
-### Data Validation Errors
-- Handle malformed timestamps
-- Skip records with critical missing data
-- Log validation failures for debugging
+-   **Data Validation Errors**: If a message fails Pydantic validation (`ValidationError`), it is logged and skipped, preventing malformed data from entering the database or halting the pipeline.
+-   **Database Errors**: Connection errors and batch insertion failures are logged, and the batch is cleared to prevent repeated retries on failing data.
 
 ## Performance Characteristics
 
@@ -336,31 +256,20 @@ ORDER BY measurement_count DESC;
 ## Dependencies
 
 ### Python Libraries
-- `kafka-python==2.0.2`: Kafka consumer
-- `psycopg2-binary==2.9.5`: PostgreSQL/TimescaleDB adapter
-- Standard library: `json`, `logging`, `os`, `time`, `signal`, `datetime`
+-   `kafka-python==2.0.2`: Kafka consumer client.
+-   `psycopg2-binary==2.9.5`: PostgreSQL/TimescaleDB adapter.
+-   `pydantic==2.7.1`: For data validation and settings management.
 
 ### Service Dependencies
-- **Kafka**: Message source
-- **TimescaleDB**: Data destination
-- **Zookeeper**: Kafka coordination (indirect)
+-   **Kafka**: The message source.
+-   **TimescaleDB**: The data destination.
 
-## Configuration Files
+## Requirements.txt
 
-### Dockerfile
-```dockerfile
-FROM python:3.9-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-COPY sink.py .
-CMD ["python", "sink.py"]
-```
-
-### Requirements.txt
 ```
 kafka-python==2.0.2
 psycopg2-binary==2.9.5
+pydantic==2.7.1
 ```
 
 ## TimescaleDB Optimization

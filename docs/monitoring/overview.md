@@ -6,13 +6,42 @@ The MQTT Architecture POC includes a comprehensive monitoring stack designed to 
 
 ## Monitoring Architecture
 
-```
-IoT Services → Metrics Collection → Storage → Visualization → Alerting
-     ↓              ↓                 ↓          ↓           ↓
-Components    →  Prometheus      →  TSDB   →  Grafana  →  (Future)
-Health APIs   →  cAdvisor        
-              →  Node Exporter   
-              →  Health Monitor  
+```mermaid
+graph TD
+    subgraph "**Monitored Services**"
+        A["**IoT Services**"] -->|Metrics| B("**Prometheus**")
+        C["**Health APIs**"] -->|Health Checks| B
+    end
+
+    subgraph "**Monitoring Core**"
+        B --> D{"**Time-Series DB**"}
+        B --> E["**Grafana**"]
+    end
+
+    subgraph "**Data Sources**"
+        F["**cAdvisor**"] --> B
+        G["**Node Exporter**"] --> B
+        H["**Health Monitor**"] --> B
+    end
+
+    subgraph "**User Interface**"
+        E --> I{"**Dashboards**"}
+    end
+
+    subgraph "**Alerting (Future)**"
+        E --> J("**Alertmanager**")
+    end
+
+    style A fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
+    style B fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
+    style C fill:#fff,stroke:#333,stroke-weight:2px,font-weight:bold
+    style D fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
+    style E fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
+    style F fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
+    style G fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
+    style H fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
+    style I fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
+    style J fill:#fff,stroke:#333,stroke-width:2px,font-weight:bold
 ```
 
 ## Core Monitoring Components

@@ -154,4 +154,4 @@ We use the list of data points to generate decoded data, creating one decoded re
    - `Int16`: Signed 16-bit integer
    - `Uint16`: Unsigned 16-bit integer
 
-3. **Data Storage**: The decoded number is stored in the `decoded_iot_data` table in the `value` column.
+3. **Data Storage**: The decoded number is stored in the `iot_measurements` table in the `value` column.

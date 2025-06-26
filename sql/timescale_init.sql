@@ -1,5 +1,9 @@
 -- TimescaleDB Initialization for time-series data
 
+-- Drop existing objects to ensure a clean slate
+DROP MATERIALIZED VIEW IF EXISTS iot_hourly_stats;
+DROP TABLE IF EXISTS iot_measurements;
+
 -- Create extension for TimescaleDB
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 
@@ -9,11 +13,11 @@ CREATE TABLE IF NOT EXISTS iot_measurements (
     device_id VARCHAR(50) NOT NULL,
     connector_mode VARCHAR(50) NOT NULL,
     component_type VARCHAR(50) NOT NULL,
-    component_id VARCHAR(10),
+    pin_position VARCHAR(10),
     value DOUBLE PRECISION,
     unit VARCHAR(20),
-    raw_data JSONB,
-    PRIMARY KEY (timestamp, device_id, connector_mode, component_type, component_id)
+    topic VARCHAR(255),
+    PRIMARY KEY (timestamp, device_id, connector_mode, component_type, pin_position)
 );
 
 -- Convert to hypertable (partitioned by time)
@@ -32,14 +36,14 @@ SELECT
     device_id,
     connector_mode,
     component_type,
-    component_id,
+    pin_position,
     unit,
     AVG(value) as avg_value,
     MIN(value) as min_value,
     MAX(value) as max_value,
     COUNT(*) as measurement_count
 FROM iot_measurements
-GROUP BY bucket, device_id, connector_mode, component_type, component_id, unit
+GROUP BY bucket, device_id, connector_mode, component_type, pin_position, unit
 WITH NO DATA;
 
 -- Create retention policy (optional - keep raw data for 30 days)

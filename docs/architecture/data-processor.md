@@ -151,10 +151,10 @@ True
   "device_id": "f2-e4fd45f654be",
   "connector_mode": "sensor-mode",
   "component_type": "sensor",
-  "component_id": "3",
+  "pin_position": "3",
   "value": 29.8,
   "unit": "celsius",
-  "original_topic": "cmnd/f2-e4fd45f654be/sensor-mode/J1/sensor-3",
+  "topic": "cmnd/f2-e4fd45f654be/sensor-mode/J1/sensor-3",
   "raw_data": {
     "timestamp": "2023-05-25 15:13:10.543400",
     "data": "0x12A"

@@ -172,10 +172,10 @@ docker-compose -f monitoring/docker-compose.monitoring.yml ps  # Monitoring
      "device_id": "f2-e4fd45f654be",
      "connector_mode": "access-control-mode",
      "component_type": "door-sensors",
-     "component_id": null,
+     "pin_position": null,
      "value": {"door-sensor-1": false, "door-sensor-2": true},
      "unit": "state",
-     "original_topic": "cmnd/f2-e4fd45f654be/access-control-mode/J1/door-sensors",
+     "topic": "cmnd/f2-e4fd45f654be/access-control-mode/J1/door-sensors",
      "raw_data": {...}
    }
    ```

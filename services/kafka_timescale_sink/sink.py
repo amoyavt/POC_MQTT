@@ -2,23 +2,61 @@ import json
 import logging
 import os
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import psycopg2
 from psycopg2.extras import execute_batch
 from kafka import KafkaConsumer
 import signal
 import sys
 from datetime import datetime
+from pydantic import BaseModel, Field, validator, ValidationError
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+class IotMeasurement(BaseModel):
+    """Pydantic model for an IoT measurement record."""
+    timestamp: datetime
+    device_id: str = Field(..., alias='mac_address')
+    connector_mode: str = Field('unknown', alias='mode')
+    component_type: str = Field('unknown', alias='data_point_label')
+    pin_position: str = Field('-1', alias='pin')
+    value: Optional[float] = None
+    unit: str = ''
+    topic: str = Field('', alias='original_topic')
+
+    @validator('timestamp', pre=True)
+    def convert_timestamp(cls, v):
+        if isinstance(v, (int, float)):
+            return datetime.fromtimestamp(v)
+        if isinstance(v, str):
+            try:
+                return datetime.fromisoformat(v.replace('Z', '+00:00'))
+            except ValueError:
+                try:
+                    return datetime.fromtimestamp(float(v))
+                except (ValueError, TypeError):
+                    pass
+        return datetime.now()
+
+    @validator('value', pre=True)
+    def convert_value_to_float(cls, v):
+        if v is None:
+            return None
+        try:
+            return float(v)
+        except (ValueError, TypeError):
+            logger.warning(f"Could not convert value '{v}' to float, setting to None")
+            return None
+            
+    class Config:
+        orm_mode = True
+        
 class KafkaTimescaleSink:
     def __init__(self):
         self.kafka_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:29092')
         self.input_topic = os.getenv('KAFKA_INPUT_TOPIC', 'decoded_iot_data')
         
-        # TimescaleDB connection parameters
         self.ts_host = os.getenv('TIMESCALE_HOST', 'timescaledb')
         self.ts_db = os.getenv('TIMESCALE_DB', 'timeseries')
         self.ts_user = os.getenv('TIMESCALE_USER', 'ts_user')
@@ -33,6 +71,8 @@ class KafkaTimescaleSink:
         self.running = True
         self.message_batch = []
         self.last_batch_time = time.time()
+        
+        self._insert_statement = self._build_insert_statement()
         
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
@@ -64,78 +104,31 @@ class KafkaTimescaleSink:
             enable_auto_commit=True,
             group_id='timescale_sink_group',
             value_deserializer=lambda m: json.loads(m.decode('utf-8')),
-            consumer_timeout_ms=1000  # Timeout to allow batch processing
+            consumer_timeout_ms=1000
         )
         logger.info("Kafka consumer initialized")
 
-    def _convert_timestamp(self, timestamp: Any) -> datetime:
-        """Convert various timestamp formats to datetime."""
-        if isinstance(timestamp, (int, float)):
-            return datetime.fromtimestamp(timestamp)
-        elif isinstance(timestamp, str):
-            try:
-                # Try ISO format
-                return datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-            except:
-                try:
-                    # Try parsing as float string
-                    return datetime.fromtimestamp(float(timestamp))
-                except:
-                    # Default to current time
-                    return datetime.now()
-        else:
-            return datetime.now()
-
-    def _extract_numeric_value(self, value: Any) -> Optional[float]:
-        """Extract a numeric value from various data types."""
-        if isinstance(value, (int, float)):
-            return float(value)
-        elif isinstance(value, bool):
-            return float(value)
-        elif isinstance(value, dict):
-            # For complex values like door sensors, try to extract a summary
-            if all(isinstance(v, bool) for v in value.values()):
-                # Count of True values for boolean maps
-                return float(sum(value.values()))
-            # Try to find first numeric value
-            for v in value.values():
-                if isinstance(v, (int, float)):
-                    return float(v)
-        elif isinstance(value, str):
-            try:
-                return float(value)
-            except ValueError:
-                pass
-        return None
+    def _build_insert_statement(self) -> str:
+        """Dynamically build the INSERT statement from the Pydantic model."""
+        fields = list(IotMeasurement.__fields__.keys())
+        columns = ', '.join(fields)
+        placeholders = ', '.join(['%s'] * len(fields))
+        return f"INSERT INTO iot_measurements ({columns}) VALUES ({placeholders})"
 
     def _prepare_record(self, message: Dict[str, Any]) -> Optional[tuple]:
-        """Prepare a record for insertion into TimescaleDB."""
+        """Validate and prepare a record using the Pydantic model."""
         try:
-            timestamp = self._convert_timestamp(message.get('timestamp', time.time()))
-            device_id = message.get('mac_address', 'unknown')
-            connector_mode = message.get('mode', 'unknown')
-            component_type = message.get('data_point_label', 'unknown')
-            component_id = str(message.get('pin', -1)) # Use pin as component_id, default to -1
-            unit = message.get('unit', '')
-            raw_data = message.get('original_topic', {})
+            # Add missing fields with default values before validation
+            message.setdefault('timestamp', time.time())
             
-            # Extract numeric value
-            value = self._extract_numeric_value(message.get('value'))
+            record = IotMeasurement.parse_obj(message)
             
-            # Store raw data as JSONB
-            raw_data_json = json.dumps(raw_data) if raw_data else None
+            # The order of fields is guaranteed by dict in Python 3.7+
+            return tuple(record.dict().values())
             
-            return (
-                timestamp,
-                device_id,
-                connector_mode,
-                component_type,
-                component_id,
-                value,
-                unit,
-                raw_data_json
-            )
-            
+        except ValidationError as e:
+            logger.error(f"Data validation failed: {e} - for message: {message}")
+            return None
         except Exception as e:
             logger.error(f"Error preparing record: {e}")
             return None
@@ -156,15 +149,10 @@ class KafkaTimescaleSink:
                 with self.db_connection.cursor() as cursor:
                     execute_batch(
                         cursor,
-                        """
-                        INSERT INTO iot_measurements 
-                        (timestamp, device_id, connector_mode, component_type, component_id, value, unit, raw_data)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                        """,
+                        self._insert_statement,
                         records,
                         page_size=self.batch_size
                     )
-                    
                 logger.info(f"Inserted batch of {len(records)} records into TimescaleDB")
             
             self.message_batch.clear()
@@ -172,7 +160,6 @@ class KafkaTimescaleSink:
             
         except Exception as e:
             logger.error(f"Error inserting batch: {e}")
-            # Clear batch to avoid infinite retry
             self.message_batch.clear()
 
     def _should_flush_batch(self) -> bool:
@@ -196,26 +183,21 @@ class KafkaTimescaleSink:
 
     def run(self):
         logger.info("Starting Kafka-TimescaleDB Sink")
-        
-        # Wait for services to be ready
         time.sleep(20)
         
         try:
             self._setup_database_connection()
             self._setup_kafka_consumer()
-            
             logger.info("Sink started, waiting for messages...")
             
             while self.running:
                 try:
-                    # Poll for messages with timeout
                     message_batch = self.consumer.poll(timeout_ms=1000)
                     
                     for topic_partition, messages in message_batch.items():
                         for message in messages:
                             self._process_message(message)
                     
-                    # Check if we should flush due to timeout
                     if self._should_flush_batch():
                         self._insert_batch()
                         
@@ -223,7 +205,6 @@ class KafkaTimescaleSink:
                     logger.error(f"Error in message processing loop: {e}")
                     time.sleep(1)
             
-            # Flush any remaining messages
             if self.message_batch:
                 self._insert_batch()
                 

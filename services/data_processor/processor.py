@@ -152,13 +152,7 @@ class DataProcessor:
             if 'Decimals' in data_point and data_point['Decimals'] > 0:
                 decoded_value = decoded_value / (10 ** data_point['Decimals'])
             
-            prepend = data_point.get('Prepend', '')
-            append = data_point.get('Append', '')
-            
-            if prepend or append:
-                return f"{prepend}{decoded_value}{append}"
-            else:
-                return decoded_value
+            return decoded_value
 
         except (struct.error, ValueError) as e:
             logger.error(f"Error decoding data for data point '{data_point.get('Label', 'N/A')}': {e}. Segment: {segment}")

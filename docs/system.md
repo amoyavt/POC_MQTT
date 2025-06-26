@@ -113,7 +113,7 @@ To ingest raw data from a multitude of F2 Smart Controller IoT devices, process 
 * **Function:** Final destination for processed F2 Smart Controller IoT data with time-series optimization
 * **Schema Features:**
     * **Hypertable:** `iot_measurements` table partitioned by time for optimal performance
-    * **Columns:** `timestamp`, `device_id`, `connector_mode`, `component_type`, `component_id`, `value`, `unit`, `raw_data`
+    * **Columns:** `timestamp`, `device_id`, `connector_mode`, `component_type`, `pin_position`, `value`, `unit`, `topic`
     * **Indexes:** Optimized indexes on device_id, component_type, and time-based queries
     * **Continuous Aggregates:** Automated hourly statistics for performance
     * **Compression:** Optional data compression for older data
