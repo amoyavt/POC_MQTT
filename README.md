@@ -6,6 +6,8 @@ This project is a proof-of-concept for a production-ready IoT data pipeline usin
 
 The system is designed to ingest, process, and store data from F2 Smart Controller IoT devices. It transforms raw, device-specific MQTT messages into meaningful, decoded data, optimized for time-series analysis.
 
+### Data Flow
+
 ```mermaid
 graph LR
     A[F2 Devices] -->|MQTT| B[MQTT Broker]
@@ -16,6 +18,28 @@ graph LR
     D --> F[Kafka-TimescaleDB Sink]
     E --> G[(PostgreSQL)]
     F --> H[(TimescaleDB)]
+```
+### Data Flow + Monitorin
+```mermaid
+graph LR
+    A[F2 Devices] -->|MQTT| B[MQTT Broker]
+    B --> C[MQTT-Kafka Connector]
+    C --> D[Kafka]
+    D --> E[Data Processor]
+    E --> D
+    D --> F[Kafka-TimescaleDB Sink]
+    E --> G[(PostgreSQL)]
+    F --> H[(TimescaleDB)]
+
+    %% Monitoring
+    B -.->|metrics| I[Prometheus]
+    C -.->|metrics| I
+    D -.->|metrics| I
+    E -.->|metrics| I
+    F -.->|metrics| I
+    G -.->|metrics| I
+    H -.->|metrics| I
+    I --> J[Grafana]
 ```
 
 ## Containers
