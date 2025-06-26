@@ -6,7 +6,7 @@ This project is a proof-of-concept for a production-ready IoT data pipeline usin
 
 The system is designed to ingest, process, and store data from F2 Smart Controller IoT devices. It transforms raw, device-specific MQTT messages into meaningful, decoded data, optimized for time-series analysis.
 
-### Data Flow
+### Architecture
 
 ```mermaid
 graph LR
@@ -19,7 +19,9 @@ graph LR
     E --> G[(PostgreSQL)]
     F --> H[(TimescaleDB)]
 ```
-### Data Flow + Monitorin
+
+### Architecture + Monitoring
+
 ```mermaid
 graph LR
     A[F2 Devices] -->|MQTT| B[MQTT Broker]
@@ -44,10 +46,13 @@ graph LR
 
 ## Containers
 
-### IoT Devices
--   **F2 Device Simulator**: Simulates IoT devices publishing MQTT messages.
+### Architecture
+[docs/architecture/overview.md](./docs/architecture/overview.md)
 
-### Data Pipeline
+#### IoT Devices
+-    **F2 Device Simulator**: Simulates IoT devices publishing MQTT messages.
+
+####  Data Pipeline
 -   **MQTT Broker (Mosquitto)**: Central message hub for device communications.
 -   **MQTT-Kafka Connector**: Bridges MQTT messages to Kafka topics.
 -   **Zookeeper**: Coordination service for Kafka cluster management.
@@ -55,11 +60,13 @@ graph LR
 -   **Data Processor**: Transforms raw data into meaningful measurements.
 -   **Kafka-TimescaleDB Sink**: Persists processed data to TimescaleDB.
 
-### Data Stores
+#### Data Stores
 -   **PostgreSQL**: Stores device parameters and metadata.
 -   **TimescaleDB**: Time-series database for analytics and storage.
 
 ### Monitoring
+[docs/monitoring/overview.md](./docs/monitoring/overview.md)
+
 -   **Prometheus**: Metrics collection and storage.
 -   **Grafana**: Visualization dashboards.
 -   **cAdvisor**: Container resource monitoring.
@@ -67,7 +74,6 @@ graph LR
 -   **Health Monitor**: Custom health check API.
 
 ## Shared Models
-
 The `shared/` directory contains reusable Pydantic models used across multiple services to ensure data consistency throughout the pipeline:
 
 -   **IotMeasurement**: Standardized schema for IoT sensor data with built-in validation and type conversion
