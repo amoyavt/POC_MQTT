@@ -92,7 +92,9 @@ services:
 
   # Data Processing Service
   data-processor:
-    build: ./services/data_processor
+    build:
+      context: .
+      dockerfile: services/data_processor/Dockerfile
     container_name: data-processor
     depends_on:
       - kafka
@@ -109,7 +111,9 @@ services:
 
   # Kafka to TimescaleDB Sink
   kafka-timescale-sink:
-    build: ./services/kafka_timescale_sink
+    build:
+      context: .
+      dockerfile: services/kafka_timescale_sink/Dockerfile
     container_name: kafka-timescale-sink
     depends_on:
       - kafka

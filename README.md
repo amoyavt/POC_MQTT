@@ -15,6 +15,7 @@ graph TD
     subgraph "Data Pipeline"
         B --> C{"MQTT-Kafka Connector"}
         C -->|raw_iot_data| D("Kafka")
+        ZK("Zookeeper") -.->|coordination| D
         D --> E{"Data Processor"}
         E -->|decoded_iot_data| D
         D --> F{"Kafka-TimescaleDB Sink"}
@@ -40,6 +41,7 @@ graph TD
     style B fill:#fff,stroke:#333,stroke-width:2px
     style C fill:#fff,stroke:#333,stroke-width:2px
     style D fill:#fff,stroke:#333,stroke-width:2px
+    style ZK fill:#f9f,stroke:#333,stroke-width:2px
     style E fill:#fff,stroke:#333,stroke-width:2px
     style F fill:#fff,stroke:#333,stroke-width:2px
     style G fill:#fff,stroke:#333,stroke-width:2px
@@ -53,6 +55,7 @@ graph TD
 -   **F2 Device Simulator**: Simulates IoT devices publishing MQTT messages.
 -   **MQTT Broker (Mosquitto)**: Central message hub for device communications.
 -   **MQTT-Kafka Connector**: Bridges MQTT messages to Kafka topics.
+-   **Zookeeper**: Coordination service for Kafka cluster management.
 -   **Apache Kafka**: Message streaming platform with raw and processed data topics.
 -   **PostgreSQL**: Stores device parameters and metadata.
 -   **Data Processor**: Transforms raw data into meaningful measurements.
@@ -63,6 +66,22 @@ graph TD
 -   **cAdvisor**: Container resource monitoring.
 -   **Node Exporter**: Host system metrics.
 -   **Health Monitor**: Custom health check API.
+
+## Shared Models
+
+The `shared/` directory contains reusable Pydantic models used across multiple services to ensure data consistency throughout the pipeline:
+
+-   **IotMeasurement**: Standardized schema for IoT sensor data with built-in validation and type conversion
+    - Handles timestamp conversion from various formats
+    - Extracts numeric values from strings with units (e.g., "27.93 °C" → 27.93)
+    - Maps field aliases for compatibility with different services
+    - Ensures database schema compliance
+
+Services using shared models:
+-   **Data Processor**: Validates outgoing Kafka messages
+-   **Kafka-TimescaleDB Sink**: Validates incoming data before database insertion
+
+For detailed information, see [shared/README.md](./shared/README.md).
 
 ## How to Run
 

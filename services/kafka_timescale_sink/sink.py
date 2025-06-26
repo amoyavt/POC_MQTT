@@ -1,56 +1,21 @@
 import json
 import logging
 import os
+import sys
 import time
 from typing import Dict, Any, Optional, List
 import psycopg2
 from psycopg2.extras import execute_batch
 from kafka import KafkaConsumer
 import signal
-import sys
-from datetime import datetime
-from pydantic import BaseModel, Field, validator, ValidationError
+from pydantic import ValidationError
+
+# Add the parent directory to Python path to import shared modules
+sys.path.append('/app/shared')
+from models import IotMeasurement
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
-class IotMeasurement(BaseModel):
-    """Pydantic model for an IoT measurement record."""
-    timestamp: datetime
-    device_id: str = Field(..., alias='mac_address')
-    connector_mode: str = Field('unknown', alias='mode')
-    component_type: str = Field('unknown', alias='data_point_label')
-    pin_position: str = Field('-1', alias='pin')
-    value: Optional[float] = None
-    unit: str = ''
-    topic: str = Field('', alias='original_topic')
-
-    @validator('timestamp', pre=True)
-    def convert_timestamp(cls, v):
-        if isinstance(v, (int, float)):
-            return datetime.fromtimestamp(v)
-        if isinstance(v, str):
-            try:
-                return datetime.fromisoformat(v.replace('Z', '+00:00'))
-            except ValueError:
-                try:
-                    return datetime.fromtimestamp(float(v))
-                except (ValueError, TypeError):
-                    pass
-        return datetime.now()
-
-    @validator('value', pre=True)
-    def convert_value_to_float(cls, v):
-        if v is None:
-            return None
-        try:
-            return float(v)
-        except (ValueError, TypeError):
-            logger.warning(f"Could not convert value '{v}' to float, setting to None")
-            return None
-            
-    class Config:
-        orm_mode = True
         
 class KafkaTimescaleSink:
     def __init__(self):
@@ -109,10 +74,10 @@ class KafkaTimescaleSink:
         logger.info("Kafka consumer initialized")
 
     def _build_insert_statement(self) -> str:
-        """Dynamically build the INSERT statement from the Pydantic model."""
-        fields = list(IotMeasurement.__fields__.keys())
-        columns = ', '.join(fields)
-        placeholders = ', '.join(['%s'] * len(fields))
+        """Build the INSERT statement with correct column names."""
+        # Use the actual database column names in the correct order
+        columns = "timestamp, device_id, connector_mode, datapoint_label, pin_position, value, unit, topic"
+        placeholders = ', '.join(['%s'] * 8)
         return f"INSERT INTO iot_measurements ({columns}) VALUES ({placeholders})"
 
     def _prepare_record(self, message: Dict[str, Any]) -> Optional[tuple]:
@@ -123,8 +88,17 @@ class KafkaTimescaleSink:
             
             record = IotMeasurement.parse_obj(message)
             
-            # The order of fields is guaranteed by dict in Python 3.7+
-            return tuple(record.dict().values())
+            # Return values in the exact order matching the INSERT statement
+            return (
+                record.timestamp,
+                record.device_id,
+                record.connector_mode,
+                record.datapoint_label,
+                record.pin_position,
+                record.value,
+                record.unit,
+                record.topic
+            )
             
         except ValidationError as e:
             logger.error(f"Data validation failed: {e} - for message: {message}")

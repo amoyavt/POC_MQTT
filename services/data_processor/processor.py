@@ -2,14 +2,19 @@ import json
 import logging
 import os
 import re
+import sys
 import time
 from typing import Dict, Any, Optional, Tuple, List
 import psycopg2
 from psycopg2.extras import DictCursor
 from kafka import KafkaConsumer, KafkaProducer
 import signal
-import sys
 import struct
+from pydantic import ValidationError
+
+# Add the parent directory to Python path to import shared modules
+sys.path.append('/app/shared')
+from models import IotMeasurement
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -189,7 +194,8 @@ class DataProcessor:
                 decoded_value = self._decode_data(hex_data, dp)
                 
                 if decoded_value is not None:
-                    enriched_message = {
+                    # Create message data in the format expected by IotMeasurement
+                    message_data = {
                         'timestamp': message_timestamp,
                         'mac_address': mac_addr,
                         'connector': connector_number,
@@ -201,9 +207,22 @@ class DataProcessor:
                         'original_topic': original_topic,
                     }
                     
-                    key = f"{mac_addr}-{connector_number}-{pin_position}-{dp['Label']}"
-                    self.producer.send(self.output_topic, key=key, value=enriched_message)
-                    logger.info(f"Processed and sent data for {key} - value: {decoded_value}")
+                    # Validate the message using the shared model
+                    try:
+                        validated_message = IotMeasurement.parse_obj(message_data)
+                        # Convert back to dict for Kafka sending with proper datetime serialization
+                        enriched_message = validated_message.dict_for_kafka()
+                        
+                        key = f"{mac_addr}-{connector_number}-{pin_position}-{dp['Label']}"
+                        self.producer.send(self.output_topic, key=key, value=enriched_message)
+                        logger.info(f"Processed and sent validated data for {key} - value: {decoded_value}")
+                        
+                    except ValidationError as e:
+                        logger.error(f"Data validation failed for message: {e} - data: {message_data}")
+                        # Send unvalidated message as fallback
+                        key = f"{mac_addr}-{connector_number}-{pin_position}-{dp['Label']}"
+                        self.producer.send(self.output_topic, key=key, value=message_data)
+                        logger.warning(f"Sent unvalidated message for {key}")
 
         except json.JSONDecodeError:
             logger.error(f"Failed to decode Kafka message value: {message.value}")

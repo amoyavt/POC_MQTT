@@ -70,5 +70,3 @@ The raw data from the MQTT messages is processed by the `Data Processor` service
 1.  **Data Extraction**: The `Data Processor` uses the `Offset` and `Length` from the `DataPoint` table to extract the relevant hexadecimal data from the payload.
 2.  **Data Decoding**: The extracted data is decoded based on the `DataFormat` (`Int16`, `Uint16`, etc.) specified in the `DataPoint` table.
 3.  **Data Storage**: The decoded value is stored in the `iot_measurements` table in TimescaleDB.
-
-```

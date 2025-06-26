@@ -15,6 +15,7 @@ graph TD
     subgraph "Data Pipeline"
         B --> C{"MQTT-Kafka Connector"}
         C -->|raw_iot_data| D("Kafka")
+        ZK("Zookeeper") -.->|coordination| D
         D --> E{"Data Processor"}
         E -->|decoded_iot_data| D
         D --> F{"Kafka-TimescaleDB Sink"}
@@ -40,6 +41,7 @@ graph TD
     style B fill:#fff,stroke:#333,stroke-width:2px
     style C fill:#fff,stroke:#333,stroke-width:2px
     style D fill:#fff,stroke:#333,stroke-width:2px
+    style ZK fill:#f9f,stroke:#333,stroke-width:2px
     style E fill:#fff,stroke:#333,stroke-width:2px
     style F fill:#fff,stroke:#333,stroke-width:2px
     style G fill:#fff,stroke:#333,stroke-width:2px
@@ -66,32 +68,37 @@ graph TD
 - **Output**: Kafka topic `raw_iot_data`
 - **Language**: Python with `paho-mqtt` and `kafka-python`
 
-### 4. **Apache Kafka**
+### 4. **Zookeeper**
+- **Purpose**: Coordination service for Kafka cluster management
+- **Port**: 2181
+- **Function**: Manages Kafka metadata, leader election, and cluster coordination
+
+### 5. **Apache Kafka**
 - **Purpose**: Message streaming platform and buffer
 - **Topics**: 
   - `raw_iot_data` - Raw MQTT messages
   - `decoded_iot_data` - Processed IoT data
 - **Port**: 9092
 
-### 5. **PostgreSQL (Device Parameters)**
+### 6. **PostgreSQL (Device Parameters)**
 - **Purpose**: Stores device metadata and processing parameters
 - **Database**: `device_params`
 - **Port**: 5432
 - **Key Table**: `device_parameters`
 
-### 6. **Data Processor**
+### 7. **Data Processor**
 - **Purpose**: Transforms raw IoT data into meaningful measurements
 - **Input**: Kafka topic `raw_iot_data`
 - **Output**: Kafka topic `decoded_iot_data`
 - **Language**: Python with database lookups
 
-### 7. **TimescaleDB**
+### 8. **TimescaleDB**
 - **Purpose**: Time-series data storage for analytics
 - **Database**: `timeseries`
 - **Port**: 5433
 - **Key Table**: `iot_measurements` (hypertable)
 
-### 8. **Kafka-TimescaleDB Sink**
+### 9. **Kafka-TimescaleDB Sink**
 - **Purpose**: Writes processed data to TimescaleDB
 - **Input**: Kafka topic `decoded_iot_data`
 - **Output**: TimescaleDB `iot_measurements` table
