@@ -112,12 +112,12 @@ class KafkaTimescaleSink:
         """Prepare a record for insertion into TimescaleDB."""
         try:
             timestamp = self._convert_timestamp(message.get('timestamp', time.time()))
-            device_id = message.get('device_id', 'unknown')
-            connector_mode = message.get('connector_mode', 'unknown')
-            component_type = message.get('component_type', 'unknown')
-            component_id = message.get('component_id')
+            device_id = message.get('mac_address', 'unknown')
+            connector_mode = message.get('mode', 'unknown')
+            component_type = message.get('data_point_label', 'unknown')
+            component_id = str(message.get('pin', -1)) # Use pin as component_id, default to -1
             unit = message.get('unit', '')
-            raw_data = message.get('raw_data', {})
+            raw_data = message.get('original_topic', {})
             
             # Extract numeric value
             value = self._extract_numeric_value(message.get('value'))

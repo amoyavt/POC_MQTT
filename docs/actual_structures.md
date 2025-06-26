@@ -1,9 +1,14 @@
-# A deep dive in sensor data messages in mqtt topics
+# A Deep Dive into Sensor Data Messages in MQTT Topics
 
-The DB has devices. Devices can work as controller or devices that can connnect to controllers.
-Each device is created from a deviceTemplate. 
-Each deviceTemplate has datapoints that helps to decoded the raw data.
+## Overview
 
+The database contains devices that can function as controllers or as devices that connect to controllers. Each device is created from a `DeviceTemplate`, and each `DeviceTemplate` has data points that help decode the raw data.
+
+## Data Models
+
+### Device
+
+```csharp
 public class Device
 {
     public int DeviceId { get; set; }
@@ -14,11 +19,16 @@ public class Device
     public string? SerialNumber { get; set; } = null!;
     public string? Uuid { get; set; } = null!;
     public string? MacAddress { get; set; } = null!;
-    public string? IpAddress { get; set; } = null!; // only for controller
-    public string? PcbVersion { get; set; } // only for controller
-    public virtual IEnumerable<DeviceConnectivity> DeviceConnectivities { get; set; } = null!; // only for controller
+    public string? IpAddress { get; set; } = null!;
+    public string? PcbVersion { get; set; }
+    public virtual IEnumerable<DeviceConnectivity> DeviceConnectivities { get; set; } = null!;
     public virtual DeviceClaim ClaimDevice { get; set; } = null!;
 }
+```
+
+### DeviceTemplate
+
+```csharp
 public class DeviceTemplate
 {
     public int DeviceTemplateId { get; set; }
@@ -33,6 +43,11 @@ public class DeviceTemplate
     public virtual IEnumerable<DeviceTemplatePower> Powers { get; set; } = null!;
     public virtual IEnumerable<DataPoint> DataPoints { get; set; } = null!;        
 }
+```
+
+### DataPoint
+
+```csharp
 public class DataPoint
 {
     public int DataPointId { get; set; }
@@ -52,13 +67,18 @@ public class DataPoint
     public DeviceManagementConstants.ChartType RealTimeChart { get; set; }
     public DeviceManagementConstants.ChartType HistoricalChart { get; set; }
 }
+```
+## Device Identification
 
-the mqtt topics has the MacAddress, that is unique. With the MAC Address we can get the deviceId.
+The MQTT topics contain the MAC address, which is unique. Using the MAC address, we can retrieve the corresponding device ID.
 
-A controller is a device and has connectors.
-Each connector has pins. 
-Each pin has a device connected that has different funtionality. Here we will focus on the type of serial sensors 
+## Controller Architecture
 
+A controller is a type of device that has connectors. Each connector has pins, and each pin has a connected device with different functionality. Here we focus on serial sensor types.
+
+### Connector
+
+```csharp
 public class Connector
 {
     [Key]
@@ -72,6 +92,11 @@ public class Connector
     public virtual ConnectorType ConnectorType { get; set; } = null!;
     public virtual IEnumerable<Pin> Pins { get; set; } = null!;
 }
+```
+
+### Pin
+
+```csharp
 public class Pin
 {
     [Key]
@@ -83,26 +108,50 @@ public class Pin
     public int DeviceId { get; set; }
     public virtual Device Device { get; set; } = null!;
 }
+```
 
+## MQTT Message Format
 
-The message that the MQTT broker will get is
+The MQTT broker receives messages with the following topic structure:
+
 ```
 cmnd/f2-<MAC_ADDR>/<MODE>/<CONNECTOR>/sensor-<N>
-``` 
-with json payload
+```
+
+With a JSON payload:
+
+```json
 { 
   "timestamp": "2023-05-25 15:13:10.543400", 
-  "data": <hex value> 
+  "data": "<hex value>" 
 }
-where <hex value> is a string with a big HEX number like "01 03 0C 32 30 32 30 36 32 38 30 31 30 31 5B 18 28 01"
+```
 
-<MAC_ADDR> provides the MAC address of the controller.
-<CONNECTOR> provide the ConnectorNumber
-<N> is the pin Position. Where we have an unique device connected. 
-The device belongs to an unique device template.
-The devicetemplate has several datapoints.
+Where `<hex value>` is a string containing a hexadecimal number, for example:
+```
+"01 03 0C 32 30 32 30 36 32 38 30 31 30 31 5B 18 28 01"
+```
 
-We use the list of datapoints for generate decoded data. One decode record from each encoded data.
-The datapoint has info that we can use to extract a HEX number using Offset and Lenght (in bytes)
-That number can be decoded with the DataFormat in the datapoint. It could be 'Int16' or 'Uint16'.
-Finally that number is stored in with format of decoded_iot_data (in value column).
+### Topic Structure Explanation
+
+- **`<MAC_ADDR>`**: Provides the MAC address of the controller
+- **`<CONNECTOR>`**: Provides the connector number
+- **`<N>`**: Pin position where a unique device is connected
+
+Each device belongs to a unique device template, and the device template contains several data points.
+
+## Data Processing Workflow
+
+We use the list of data points to generate decoded data, creating one decoded record from each encoded data entry.
+
+### Decoding Process
+
+1. **Data Extraction**: The data point contains information to extract a hexadecimal number using:
+   - `Offset`: Starting position in bytes
+   - `Length`: Number of bytes to extract
+
+2. **Data Decoding**: The extracted number is decoded using the `DataFormat` specified in the data point:
+   - `Int16`: Signed 16-bit integer
+   - `Uint16`: Unsigned 16-bit integer
+
+3. **Data Storage**: The decoded number is stored in the `decoded_iot_data` table in the `value` column.

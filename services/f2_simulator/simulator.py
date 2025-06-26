@@ -16,15 +16,37 @@ class F2DeviceSimulator:
         self.mqtt_broker = os.getenv('MQTT_BROKER', 'mosquitto:1883')
         self.publish_interval = int(os.getenv('PUBLISH_INTERVAL', '5'))
         
-        # Simulated F2 devices
+        # Simulated F2 devices with connectors and pins, based on docs/actual_structures.md
         self.devices = [
             {
                 'mac': 'e4fd45f654be',
-                'modes': ['access-control-mode', 'alarm-mode', 'sensor-mode']
+                'mode': 'sensor-mode',
+                'connectors': [
+                    {
+                        'number': 1,
+                        'pins': [1] # Living Room Env Sensor
+                    }
+                ]
             },
             {
                 'mac': 'abc123def456', 
-                'modes': ['sensor-mode', 'access-control-mode']
+                'mode': 'sensor-mode',
+                'connectors': [
+                    {
+                        'number': 2,
+                        'pins': [2] # Kitchen Power Monitor
+                    }
+                ]
+            },
+            {
+                'mac': '123456abcdef',
+                'mode': 'sensor-mode',
+                'connectors': [
+                    {
+                        'number': 4,
+                        'pins': [3] # Bedroom Env Sensor
+                    }
+                ]
             }
         ]
         
@@ -39,123 +61,18 @@ class F2DeviceSimulator:
         self.running = False
 
     def _get_current_timestamp(self) -> str:
-        return datetime.now().isoformat()
+        # The timestamp format in the example is "2023-05-25 15:13:10.543400"
+        return datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
 
-    def _generate_door_sensor_data(self) -> Dict:
-        """Generate door sensor status data."""
-        return {
-            "timestamp": self._get_current_timestamp(),
-            "door-sensor-1": random.choice([True, False]),
-            "door-sensor-2": random.choice([True, False])
-        }
-
-    def _generate_strike_data(self) -> Dict:
-        """Generate electric strike status data."""
-        return {
-            "timestamp": self._get_current_timestamp(),
-            "status": random.choice([True, False])
-        }
-
-    def _generate_exit_buttons_data(self) -> Dict:
-        """Generate exit buttons status data."""
-        return {
-            "timestamp": self._get_current_timestamp(),
-            "exit-button-1": random.choice([True, False]),
-            "exit-button-2": random.choice([True, False])
-        }
-
-    def _generate_motion_sensor_data(self) -> Dict:
-        """Generate motion sensor data."""
-        return {
-            "timestamp": self._get_current_timestamp(),
-            "status": random.choice([True, False])
-        }
-
-    def _generate_siren_data(self) -> Dict:
-        """Generate siren status data."""
-        return {
-            "timestamp": self._get_current_timestamp(),
-            "status": random.choice([True, False])
-        }
-
-    def _generate_reader_data(self) -> Dict:
-        """Generate QR/NFC reader data."""
-        sample_data = [
-            "b'\"Hello World\"'",
-            "b'\"USER12345\"'",
-            "b'\"ACCESS_CARD_789\"'",
-            "b'\"QR_CODE_ABC123\"'"
-        ]
-        return {
-            "timestamp": self._get_current_timestamp(),
-            "data": random.choice(sample_data)
-        }
-
-    def _generate_rs485_sensor_data(self) -> Dict:
-        """Generate RS-485 sensor data (temperature, humidity, pressure)."""
-        # Generate random hex values for different sensor types
-        if random.choice([True, False]):
-            # Temperature sensor (celsius * 10)
-            temp_celsius = random.uniform(15.0, 35.0)
-            hex_value = hex(int(temp_celsius * 10))
-        else:
-            # Humidity sensor (percentage * 100) or pressure (hPa * 10)
-            value = random.uniform(300, 1200)
-            hex_value = hex(int(value))
-        
-        return {
-            "timestamp": self._get_current_timestamp(),
-            "data": hex_value
-        }
-
-    def _get_message_generators(self) -> Dict:
-        """Return mapping of component types to their data generators."""
-        return {
-            'door-sensors': self._generate_door_sensor_data,
-            'strike': self._generate_strike_data,
-            'exit-buttons': self._generate_exit_buttons_data,
-            'motion-sensor': self._generate_motion_sensor_data,
-            'siren': self._generate_siren_data,
-            'reader': self._generate_reader_data,
-            'sensor': self._generate_rs485_sensor_data
-        }
-
-    def _get_topics_for_mode(self, device_mac: str, mode: str) -> List[str]:
-        """Get list of topics for a given device and mode."""
-        base = f"cmnd/f2-{device_mac}/{mode}/J1"
-        
-        if mode == 'access-control-mode':
-            return [
-                f"{base}/door-sensors",
-                f"{base}/strike-1",
-                f"{base}/exit-buttons",
-                f"{base}/reader-1"
-            ]
-        elif mode == 'alarm-mode':
-            return [
-                f"{base}/motion-sensor-1",
-                f"{base}/siren-1"
-            ]
-        elif mode == 'sensor-mode':
-            return [
-                f"{base}/sensor-1",
-                f"{base}/sensor-2",
-                f"{base}/sensor-3"
-            ]
-        else:
-            return []
-
-    def _extract_component_info(self, topic: str) -> tuple:
-        """Extract component type and ID from topic."""
-        parts = topic.split('/')
-        if len(parts) >= 5:
-            component_part = parts[-1]
-            if '-' in component_part:
-                component_type, component_id = component_part.rsplit('-', 1)
-                return component_type, component_id
-            else:
-                return component_part, None
-        return 'unknown', None
+    def _generate_sensor_hex_data(self) -> str:
+        """
+        Generates a random hex string similar to the example in the documentation.
+        Example: "01 03 0C 32 30 32 30 36 32 38 30 31 30 31 5B 18 28 01"
+        This generates a string of 16 random hex bytes separated by spaces.
+        """
+        num_bytes = 16
+        hex_bytes = [f"{random.randint(0, 255):02x}" for _ in range(num_bytes)]
+        return " ".join(hex_bytes)
 
     def _on_mqtt_connect(self, _client, _userdata, _flags, rc):
         if rc == 0:
@@ -176,31 +93,30 @@ class F2DeviceSimulator:
         self.mqtt_client.loop_start()
 
     def _publish_device_data(self):
-        """Publish data for all simulated devices."""
-        generators = self._get_message_generators()
-        
+        """
+        Publish sensor data for all simulated devices, connectors, and pins.
+        """
         for device in self.devices:
             mac = device['mac']
-            modes = device['modes']
+            mode = device['mode']
             
-            # Randomly select a mode for this iteration
-            mode = random.choice(modes)
-            topics = self._get_topics_for_mode(mac, mode)
-            
-            # Publish to a random subset of topics for this device
-            num_topics = random.randint(1, min(3, len(topics)))
-            selected_topics = random.sample(topics, num_topics)
-            
-            for topic in selected_topics:
-                component_type, _component_id = self._extract_component_info(topic)
+            for connector in device['connectors']:
+                connector_number = connector['number']
                 
-                if component_type in generators:
-                    data = generators[component_type]()
-                    payload = json.dumps(data)
+                for pin in connector['pins']:
+                    # Topic format: cmnd/f2-<MAC_ADDR>/<MODE>/<CONNECTOR>/sensor-<N>
+                    topic = f"cmnd/f2-{mac}/{mode}/{connector_number}/sensor-{pin}"
+                    
+                    hex_data = self._generate_sensor_hex_data()
+                    payload_dict = {
+                        "timestamp": self._get_current_timestamp(),
+                        "data": hex_data
+                    }
+                    payload_json = json.dumps(payload_dict)
                     
                     try:
-                        self.mqtt_client.publish(topic, payload)
-                        logger.info(f"Published to {topic}: {component_type}")
+                        self.mqtt_client.publish(topic, payload_json)
+                        logger.info(f"Published to {topic}")
                     except Exception as e:
                         logger.error(f"Error publishing to {topic}: {e}")
 

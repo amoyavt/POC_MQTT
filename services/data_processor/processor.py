@@ -3,12 +3,13 @@ import logging
 import os
 import re
 import time
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 import psycopg2
 from psycopg2.extras import DictCursor
 from kafka import KafkaConsumer, KafkaProducer
 import signal
 import sys
+import struct
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -19,7 +20,6 @@ class DataProcessor:
         self.input_topic = os.getenv('KAFKA_INPUT_TOPIC', 'raw_iot_data')
         self.output_topic = os.getenv('KAFKA_OUTPUT_TOPIC', 'decoded_iot_data')
         
-        # PostgreSQL connection parameters
         self.pg_host = os.getenv('POSTGRES_HOST', 'postgres')
         self.pg_db = os.getenv('POSTGRES_DB', 'device_params')
         self.pg_user = os.getenv('POSTGRES_USER', 'iot_user')
@@ -71,170 +71,154 @@ class DataProcessor:
         
         logger.info("Kafka consumer and producer initialized")
 
-    def _parse_mqtt_topic(self, topic: str) -> Tuple[str, str, str, Optional[str]]:
-        """Parse MQTT topic to extract components."""
-        # Pattern: cmnd/f2-<MAC_ADDR>/<MODE>/<CONNECTOR>/<COMPONENT>-<ID>
-        pattern = r'cmnd/f2-([a-fA-F0-9]+)/([^/]+)/([^/]+)/([^-]+)(?:-(\d+))?'
+    def _parse_mqtt_topic(self, topic: str) -> Optional[Tuple[str, str, int, int]]:
+        """
+        Parse MQTT topic to extract components based on the format:
+        cmnd/f2-<MAC_ADDR>/<MODE>/<CONNECTOR>/sensor-<N>
+        """
+        pattern = r'cmnd/f2-([a-fA-F0-9]+)/([^/]+)/(\d+)/sensor-(\d+)'
         match = re.match(pattern, topic)
         
         if match:
             mac_addr = match.group(1)
             mode = match.group(2)
-            connector = match.group(3)
-            component_type = match.group(4)
-            component_id = match.group(5)
-            
-            device_id = f"f2-{mac_addr}"
-            return device_id, mode, component_type, component_id
+            connector_number = int(match.group(3))
+            pin_position = int(match.group(4))
+            return mac_addr, mode, connector_number, pin_position
         
-        # Fallback for simpler patterns
-        parts = topic.split('/')
-        if len(parts) >= 4:
-            device_id = parts[1]
-            mode = parts[2] if len(parts) > 2 else 'unknown'
-            component_type = parts[-1].split('-')[0]
-            component_id = parts[-1].split('-')[1] if '-' in parts[-1] else None
-            return device_id, mode, component_type, component_id
-        
-        return "unknown", "unknown", "unknown", None
+        logger.warning(f"Topic '{topic}' does not match expected format.")
+        return None
 
-    def _get_device_parameters(self, device_id: str, connector_mode: str, 
-                             component_type: str, component_id: Optional[str]) -> Optional[Dict]:
-        """Retrieve device parameters from PostgreSQL."""
+    def _get_data_points(self, mac_addr: str, connector_number: int, pin_position: int) -> Optional[List[Dict[str, Any]]]:
+        """Retrieve data points for a device connected to a specific controller pin."""
+        query = '''
+        SELECT dp.*
+        FROM "DataPoint" dp
+        JOIN "DeviceTemplate" dt ON dp."DeviceTemplateId" = dt."DeviceTemplateId"
+        JOIN "Device" d ON dt."DeviceTemplateId" = d."DeviceTemplateId"
+        JOIN "Pin" p ON d."DeviceId" = p."DeviceId"
+        JOIN "Connector" c ON p."ConnectorId" = c."ConnectorId"
+        JOIN "Device" controller ON c."ControllerId" = controller."DeviceId"
+        WHERE controller."MacAddress" ILIKE %s
+          AND c."ConnectorNumber" = %s
+          AND p."Position" = %s;
+        '''
         try:
             with self.db_connection.cursor(cursor_factory=DictCursor) as cursor:
-                query = """
-                SELECT encoding_type, units, scaling_factor 
-                FROM device_parameters 
-                WHERE device_id = %s AND connector_mode = %s 
-                AND component_type = %s AND (component_id = %s OR component_id IS NULL)
-                ORDER BY component_id NULLS LAST
-                LIMIT 1
-                """
+                cursor.execute(query, (mac_addr, connector_number, pin_position))
+                results = cursor.fetchall()
                 
-                cursor.execute(query, (device_id, connector_mode, component_type, component_id))
-                result = cursor.fetchone()
-                
-                if result:
-                    return dict(result)
+                if results:
+                    return [dict(row) for row in results]
                 else:
-                    logger.warning(f"No parameters found for {device_id}/{connector_mode}/{component_type}/{component_id}")
+                    logger.warning(f"No data points found for device at MAC/connector/pin: {mac_addr}/{connector_number}/{pin_position}")
                     return None
-                    
+        except psycopg2.Error as e:
+            logger.error(f"Database query error for data points: {e}")
+            return None
         except Exception as e:
-            logger.error(f"Database query error: {e}")
+            logger.error(f"An unexpected error occurred during DB query: {e}")
             return None
 
-    def _decode_value(self, raw_data: Any, encoding_type: str, scaling_factor: float) -> Any:
-        """Decode raw data based on encoding type."""
+    def _decode_data(self, hex_data: str, data_point: Dict[str, Any]) -> Optional[Any]:
+        """Decodes a segment of hex data based on a data point definition."""
         try:
-            if encoding_type == 'boolean':
-                if isinstance(raw_data, dict) and 'status' in raw_data:
-                    return bool(raw_data['status'])
-                return bool(raw_data)
+            offset = data_point['Offset']
+            length = data_point['Length']
+            data_format = data_point['DataFormat']
             
-            elif encoding_type == 'boolean_map':
-                if isinstance(raw_data, dict):
-                    # For door sensors, exit buttons, etc.
-                    return {k: bool(v) for k, v in raw_data.items() if k != 'timestamp'}
-                return raw_data
+            hex_data = hex_data.replace(" ", "")
             
-            elif encoding_type == 'hex_to_float':
-                if isinstance(raw_data, dict) and 'data' in raw_data:
-                    hex_value = raw_data['data']
-                    if isinstance(hex_value, str):
-                        # Convert hex string to float
-                        try:
-                            int_value = int(hex_value, 16)
-                            return float(int_value) * scaling_factor
-                        except ValueError:
-                            logger.warning(f"Could not convert hex value: {hex_value}")
-                            return None
-                return raw_data
+            start_index = offset * 2
+            end_index = start_index + length * 2
             
-            elif encoding_type == 'raw_string':
-                if isinstance(raw_data, dict) and 'data' in raw_data:
-                    return str(raw_data['data'])
-                return str(raw_data)
-            
-            else:
-                logger.warning(f"Unknown encoding type: {encoding_type}")
-                return raw_data
+            if end_index > len(hex_data):
+                logger.warning(f"Data point '{data_point['Label']}' (offset: {offset}, length: {length}) is out of bounds for hex data of length {len(hex_data)/2} bytes.")
+                return None
                 
+            segment = hex_data[start_index:end_index]
+            byte_data = bytes.fromhex(segment)
+
+            decoded_value = None
+            
+            if data_format == 'Int16':
+                decoded_value = struct.unpack('>h', byte_data)[0]
+            elif data_format == 'Uint16':
+                decoded_value = struct.unpack('>H', byte_data)[0]
+            else:
+                logger.warning(f"Unsupported data format: '{data_format}' for data point '{data_point['Label']}'")
+                return None
+
+            if 'Decimals' in data_point and data_point['Decimals'] > 0:
+                decoded_value = decoded_value / (10 ** data_point['Decimals'])
+            
+            prepend = data_point.get('Prepend', '')
+            append = data_point.get('Append', '')
+            
+            if prepend or append:
+                return f"{prepend}{decoded_value}{append}"
+            else:
+                return decoded_value
+
+        except (struct.error, ValueError) as e:
+            logger.error(f"Error decoding data for data point '{data_point.get('Label', 'N/A')}': {e}. Segment: {segment}")
+            return None
         except Exception as e:
-            logger.error(f"Error decoding value: {e}")
-            return raw_data
+            logger.error(f"An unexpected error occurred during data decoding: {e}")
+            return None
 
     def _process_message(self, message):
         """Process a single message from Kafka."""
         try:
             data = message.value
             original_topic = data.get('original_topic', '')
-            device_id = data.get('device_id', '')
             payload = data.get('payload', {})
-            kafka_timestamp = data.get('timestamp', time.time())
             
-            # Parse the MQTT topic
-            parsed_device_id, connector_mode, component_type, component_id = self._parse_mqtt_topic(original_topic)
-            
-            # Use parsed device_id if available
-            if parsed_device_id != "unknown":
-                device_id = parsed_device_id
-            
-            # Get device parameters
-            params = self._get_device_parameters(device_id, connector_mode, component_type, component_id)
-            
-            if not params:
-                logger.warning(f"Skipping message - no parameters found for {device_id}")
+            if not original_topic or 'data' not in payload:
+                logger.debug(f"Skipping message with missing topic or payload data: {data}")
                 return
+
+            topic_parts = self._parse_mqtt_topic(original_topic)
+            if not topic_parts:
+                return
+
+            mac_addr, mode, connector_number, pin_position = topic_parts
             
-            # Extract timestamp from payload if available
-            message_timestamp = payload.get('timestamp', kafka_timestamp)
-            if isinstance(message_timestamp, str):
-                # Try to parse timestamp string
-                try:
-                    import datetime
-                    dt = datetime.datetime.fromisoformat(message_timestamp.replace('Z', '+00:00'))
-                    message_timestamp = dt.timestamp()
-                except:
-                    message_timestamp = kafka_timestamp
+            data_points = self._get_data_points(mac_addr, connector_number, pin_position)
+            if not data_points:
+                return
+
+            hex_data = payload['data']
+            message_timestamp = payload.get('timestamp', time.time())
             
-            # Decode the value
-            decoded_value = self._decode_value(
-                payload, 
-                params['encoding_type'], 
-                params['scaling_factor']
-            )
-            
-            # Create enriched message
-            enriched_message = {
-                'timestamp': message_timestamp,
-                'device_id': device_id,
-                'connector_mode': connector_mode,
-                'component_type': component_type,
-                'component_id': component_id,
-                'value': decoded_value,
-                'unit': params['units'],
-                'original_topic': original_topic,
-                'raw_data': payload
-            }
-            
-            # Send to output topic
-            self.producer.send(
-                self.output_topic,
-                key=device_id,
-                value=enriched_message
-            )
-            
-            logger.debug(f"Processed message for {device_id}/{component_type}")
-            
+            for dp in data_points:
+                decoded_value = self._decode_data(hex_data, dp)
+                
+                if decoded_value is not None:
+                    enriched_message = {
+                        'timestamp': message_timestamp,
+                        'mac_address': mac_addr,
+                        'connector': connector_number,
+                        'pin': pin_position,
+                        'mode': mode,
+                        'data_point_label': dp['Label'],
+                        'value': decoded_value,
+                        'unit': dp.get('Append', '').strip(),
+                        'original_topic': original_topic,
+                    }
+                    
+                    key = f"{mac_addr}-{connector_number}-{pin_position}-{dp['Label']}"
+                    self.producer.send(self.output_topic, key=key, value=enriched_message)
+                    logger.info(f"Processed and sent data for {key} - value: {decoded_value}")
+
+        except json.JSONDecodeError:
+            logger.error(f"Failed to decode Kafka message value: {message.value}")
         except Exception as e:
-            logger.error(f"Error processing message: {e}")
+            logger.error(f"An unexpected error occurred in _process_message: {e}", exc_info=True)
 
     def run(self):
         logger.info("Starting Data Processor")
         
-        # Wait for services to be ready
         time.sleep(15)
         
         try:
@@ -246,7 +230,6 @@ class DataProcessor:
             for message in self.consumer:
                 if not self.running:
                     break
-                    
                 self._process_message(message)
                 
         except Exception as e:
