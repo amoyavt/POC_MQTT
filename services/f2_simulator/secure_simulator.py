@@ -86,14 +86,14 @@ class SecureF2DeviceSimulator:
             try:
                 # Create secure client for this device
                 client = SecureF2Client(
-                    device_mac=mac_address,
-                    certs_base_path=self.certs_path,
-                    broker_host=self.mqtt_broker.split(':')[0],
-                    broker_port=int(self.mqtt_broker.split(':')[1]) if ':' in self.mqtt_broker else 8883
+                    mac_address=mac_address,
+                    certs_dir=self.certs_path
                 )
                 
                 # Connect the client
-                if client.connect():
+                broker_host = self.mqtt_broker.split(':')[0]
+                broker_port = int(self.mqtt_broker.split(':')[1]) if ':' in self.mqtt_broker else 8883
+                if client.connect(broker_host, broker_port):
                     self.clients[mac_address] = {
                         'client': client,
                         'info': device_info,

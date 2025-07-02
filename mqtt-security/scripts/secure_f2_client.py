@@ -220,6 +220,15 @@ class SecureF2Client:
             print(f"❌ Connection failed: {e}")
             return False
             
+    def publish(self, topic, payload, qos=0, retain=False):
+        """Publish a message to the broker"""
+        try:
+            result = self.client.publish(topic, payload, qos, retain)
+            return result.rc == mqtt.MQTT_ERR_SUCCESS
+        except Exception as e:
+            print(f"❌ Publish failed: {e}")
+            return False
+        
     def disconnect(self):
         """Disconnect from broker"""
         self.client.disconnect()

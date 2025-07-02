@@ -10,6 +10,7 @@ services:
     volumes:
       - ./mqtt-security/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
       - ./mqtt-security/mosquitto/acl_file.conf:/mosquitto/config/acl_file.conf
+      - ./mqtt-security/mosquitto/passwd:/mosquitto/config/passwd
       - ./mqtt-security/certs:/mosquitto/config/certs
       - mosquitto_data:/mosquitto/data
       - mosquitto_logs:/mosquitto/log
@@ -88,6 +89,9 @@ services:
       - kafka
     environment:
       MQTT_BROKER: mosquitto:1883
+      MQTT_USERNAME: iot_user
+      MQTT_PASSWORD: f6yksL+gDk1iexPUnBZvgf3V
+      MQTT_TOPIC_PATTERN: #
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       KAFKA_TOPIC: raw_iot_data
     networks:
@@ -139,7 +143,9 @@ services:
     depends_on:
       - mosquitto
     environment:
-      MQTT_BROKER: mosquitto:8883  # Use secure mTLS port
+      MQTT_BROKER: mosquitto:1883  # Use internal port for testing
+      MQTT_USERNAME: iot_user
+      MQTT_PASSWORD: f6yksL+gDk1iexPUnBZvgf3V
       PUBLISH_INTERVAL: 5
       DEVICE_COUNT: 2
       CERTS_PATH: /app/mqtt-security/certs/devices

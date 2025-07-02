@@ -82,7 +82,7 @@ erDiagram
 
 ```
 
-## Device
+### Device
 
 ```csharp
 public class Device
@@ -102,7 +102,7 @@ public class Device
 }
 ```
 
-## DeviceTemplate
+### DeviceTemplate
 
 ```csharp
 public class DeviceTemplate
@@ -121,7 +121,7 @@ public class DeviceTemplate
 }
 ```
 
-## DataPoint
+### DataPoint
 
 ```csharp
 public class DataPoint
@@ -145,7 +145,7 @@ public class DataPoint
 }
 ```
 
-## Controller
+### Controller
 
 A controller is a type of device that has connectors. Each connector has pins, and each pin has a connected device with different functionality. Here we focus on serial sensor types.
 

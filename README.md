@@ -1,21 +1,22 @@
 # MQTT Architecture POC
 
-> A production-ready IoT data pipeline using MQTT, Kafka, and TimescaleDB
+> A secure, production-ready IoT data pipeline using MQTT, Kafka, and TimescaleDB
 
 [![Docker](https://img.shields.io/badge/Docker-20.10+-blue.svg)](https://docs.docker.com/install/)
+[![Security](https://img.shields.io/badge/Security-mTLS%20%2B%20Auth-green.svg)](https://docs.docker.com/install/)
 [![TimescaleDB](https://img.shields.io/badge/TimescaleDB-2.0+-orange.svg)](https://docs.timescale.com/)
 [![Kafka](https://img.shields.io/badge/Apache%20Kafka-2.8+-red.svg)](https://kafka.apache.org/)
 
 ## 🎯 Overview
 
-This system ingests, processes, and stores IoT data from F2 Smart Controller devices, transforming raw MQTT messages into structured time-series data for analytics and monitoring.
+This system ingests, processes, and stores IoT data from F2 Smart Controller devices, transforming raw MQTT messages into structured time-series data for analytics and monitoring. All services run with security-first approach including mTLS authentication, non-root containers, and comprehensive access controls.
 
 **Key Features:**
-- Real-time data processing pipeline
-- Time-series data storage with compression
-- Comprehensive monitoring and alerting
-- Scalable microservices architecture
-- Developer-friendly debugging tools
+- 🔒 **Security First**: mTLS authentication, ACL-based authorization, non-root containers
+- ⚡ **High Performance**: Optimized batching, connection pooling, Redis caching
+- 📊 **Real-time Processing**: Stream processing with Kafka and TimescaleDB
+- 🐛 **Developer Friendly**: Comprehensive logging, health checks, easy debugging
+- 📈 **Production Ready**: Monitoring, metrics, horizontal scaling support
 
 ### Architecture
 
@@ -139,19 +140,19 @@ For detailed information, see [shared/README.md](./shared/README.md).
 - 8GB+ RAM recommended
 - Make utility (optional but recommended)
 
-### 1. Secure Setup (Recommended for Production)
+### Simple Setup (Development & Testing)
 ```bash
-# Setup with enhanced security and performance including monitoring
-make secure-setup
+# Start core services (MQTT broker + F2 simulator)
+docker-compose up -d mosquitto f2-simulator
 
-# Check system health
-make health
+# Check service status
+docker-compose ps
 
-# Test MQTT authentication
-make mqtt-test
+# View logs
+docker-compose logs -f
 ```
 
-### 2. Development Setup
+### Full Pipeline Setup
 ```bash
 # Start all services including monitoring
 make full-setup
@@ -163,30 +164,73 @@ make health
 make logs
 ```
 
-### 3. Manual Setup
-```bash
-# Start core services
-docker-compose up -d
-
-# Start monitoring stack
-docker-compose -f monitoring/docker-compose.monitoring.yml up -d
-
-# Verify all services are running
-make status
-```
-
-### 4. Access Dashboards
+### Access Dashboards
 - **Grafana**: http://localhost:3000 (admin/admin)
 - **Prometheus**: http://localhost:9090
 - **Health Monitor**: http://localhost:8000
-- **cAdvisor**: http://localhost:8080
 
-### 🔒 Security Features
-- **MQTT Authentication**: mTLS for FACES2 Controllers and Username/password for internal services required
-- **Database Security**: No external port exposure
-- **Container Security**: Non-root users, resource limits
-- **Secrets Management**: File-based credential storage
-- **Input Validation**: SQL injection prevention
+## 🔧 Development & Testing
+
+### Quick Test with MQTT & F2 Simulator
+```bash
+# Start minimal setup
+docker-compose up -d mosquitto f2-simulator
+
+# Monitor MQTT messages
+docker exec mqtt-broker mosquitto_sub -h localhost -p 1883 -u iot_user -P [password] -t '#'
+
+# Check F2 simulator logs
+docker logs f2-simulator --follow
+```
+
+## 🔒 Security & Authentication
+
+### MQTT Security Architecture
+The system implements a dual-port security model:
+
+1. **Port 1883 (Internal)**: Username/password authentication for internal services
+2. **Port 8883 (mTLS)**: Certificate-based authentication for F2 controllers
+
+### Authentication Setup
+```bash
+# Generate secrets for services
+mkdir -p secrets
+echo "iot_user" > secrets/mqtt_username.txt
+openssl rand -base64 24 > secrets/mqtt_password.txt
+
+# Create MQTT password file
+username=$(cat secrets/mqtt_username.txt)
+password=$(cat secrets/mqtt_password.txt)
+docker exec mqtt-broker mosquitto_passwd -c /tmp/passwd $username
+# Enter password when prompted
+
+# Copy to broker
+docker cp mqtt-broker:/tmp/passwd mqtt-security/mosquitto/passwd
+```
+
+### MQTT Topics Structure
+F2 Smart Controllers publish to three topic types:
+
+```
+<TOPIC_TYPE>/f2-<MAC_ADDR>/<MODE>/<CONNECTOR>/<COMPONENT>
+```
+
+**Topic Types:**
+- `cmnd`: Command topics for device control
+- `stat`: Status topics for device state and sensor readings  
+- `tele`: Telemetry topics for diagnostic data and events
+
+**Examples:**
+- `stat/f2-ac1234567890/access-control-mode/1/strike-1`
+- `tele/f2-ac1234567890/access-control-mode/1/reader-1`
+- `stat/f2-al1111222233/alarm-mode/1/motion-sensor-1`
+
+### Container Security
+All services run with enhanced security:
+- **Non-root users**: All containers run as `iotuser` (non-root)
+- **Resource limits**: Memory and CPU constraints prevent resource exhaustion
+- **Health checks**: Built-in container health monitoring
+- **Minimal images**: Python slim base images with only required dependencies
 
 ## 📚 Documentation
 
@@ -284,19 +328,42 @@ make backup
 
 ## 🚨 Troubleshooting
 
-For detailed debugging information, see [docs/DEBUGGING.md](docs/DEBUGGING.md)
-
-**Quick Diagnostics:**
+### Quick Diagnostics
 ```bash
-# Check service status
-make status
+# Check all services status
+docker-compose ps
 
-# View recent logs
-make logs
+# View service logs
+docker-compose logs [service-name]
 
-# Test connectivity
-curl http://localhost:8000/health
+# Test MQTT connectivity
+docker exec mqtt-broker mosquitto_pub -h localhost -p 1883 -u iot_user -P [password] -t test/topic -m "test"
+
+# Monitor MQTT messages
+docker exec mqtt-broker mosquitto_sub -h localhost -p 1883 -u iot_user -P [password] -t '#'
 ```
+
+### Common Issues
+
+**MQTT Broker restart loop:**
+- Check mosquitto logs: `docker logs mqtt-broker`
+- Verify password file exists: `ls -la mqtt-security/mosquitto/passwd`
+- Check ACL file syntax: `cat mqtt-security/mosquitto/acl_file.conf`
+
+**F2 Simulator not publishing:**
+- Check simulator logs: `docker logs f2-simulator`
+- Verify MQTT credentials in docker-compose.yml
+- Ensure F2 simulator is using correct port (1883 for testing, 8883 for mTLS)
+
+**No data in Kafka:**
+- Check MQTT-Kafka connector: `docker logs mqtt-kafka-connector`
+- Verify topic subscriptions in connector logs
+- Test Kafka: `docker exec kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic raw_iot_data`
+
+**Database connection issues:**
+- Check database containers: `docker-compose ps postgres timescaledb`
+- Verify connection strings in service environment variables
+- Test database connectivity: `make db-params` or `make db-timescale`
 
 ## 🛠️ Development
 

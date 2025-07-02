@@ -80,9 +80,11 @@ class MQTTKafkaConnector:
                     logger.error(f"Failed to subscribe to {self.mqtt_topic_pattern}, result code: {result}")
             except Exception as e:
                 logger.error(f"Exception during subscription: {e}")
-                # Try with a simpler pattern
-                result, mid = client.subscribe("cmnd/+/+/+/+")
-                logger.info(f"Subscribed to alternative pattern: cmnd/+/+/+/+")
+                # Subscribe to all F2 device topic types
+                client.subscribe("cmnd/+/+/+/+")
+                client.subscribe("stat/+/+/+/+") 
+                client.subscribe("tele/+/+/+/+")
+                logger.info(f"Subscribed to all device topic patterns: cmnd/stat/tele/+/+/+/+")
         else:
             logger.error(f"Failed to connect to MQTT broker, return code {rc}")
 
