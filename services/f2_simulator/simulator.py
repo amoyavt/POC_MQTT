@@ -16,6 +16,16 @@ class F2DeviceSimulator:
         self.mqtt_broker = os.getenv('MQTT_BROKER', 'mosquitto:1883')
         self.publish_interval = int(os.getenv('PUBLISH_INTERVAL', '5'))
         
+        # MQTT authentication
+        self.mqtt_username = self._get_secret_from_file(
+            os.getenv('MQTT_USERNAME_FILE'), 
+            os.getenv('MQTT_USERNAME', 'iot_user')
+        )
+        self.mqtt_password = self._get_secret_from_file(
+            os.getenv('MQTT_PASSWORD_FILE'),
+            os.getenv('MQTT_PASSWORD', 'iot_password')
+        )
+        
         # Simulated F2 devices with connectors and pins, based on docs/actual_structures.md
         self.devices = [
             {
@@ -80,15 +90,30 @@ class F2DeviceSimulator:
         else:
             logger.error(f"Failed to connect to MQTT broker, return code {rc}")
 
+    def _get_secret_from_file(self, secret_file: str, default_value: str) -> str:
+        """Securely load secret from file or environment variable."""
+        if secret_file and os.path.exists(secret_file):
+            try:
+                with open(secret_file, 'r') as f:
+                    return f.read().strip()
+            except Exception as e:
+                logger.warning(f"Failed to read secret file {secret_file}: {e}")
+        return default_value
+    
     def _setup_mqtt_client(self):
         self.mqtt_client = mqtt.Client()
         self.mqtt_client.on_connect = self._on_mqtt_connect
+        
+        # Set authentication credentials
+        if self.mqtt_username and self.mqtt_password:
+            self.mqtt_client.username_pw_set(self.mqtt_username, self.mqtt_password)
+            logger.info(f"MQTT authentication configured for user: {self.mqtt_username}")
         
         broker_parts = self.mqtt_broker.split(':')
         host = broker_parts[0]
         port = int(broker_parts[1]) if len(broker_parts) > 1 else 1883
         
-        logger.info(f"Connecting to MQTT broker at {host}:{port}")
+        logger.info(f"Connecting to MQTT broker at {host}:{port} with authentication")
         self.mqtt_client.connect(host, port, 60)
         self.mqtt_client.loop_start()
 

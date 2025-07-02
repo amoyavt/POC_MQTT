@@ -5,7 +5,8 @@
       "Bash(chmod:*)",
       "Bash(curl:*)",
       "Bash(docker logs:*)",
-      "Bash(docker-compose:*)"
+      "Bash(docker-compose:*)",
+      "Bash(rg:*)"
     ],
     "deny": []
   }

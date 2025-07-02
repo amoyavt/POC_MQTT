@@ -8,10 +8,21 @@ import paho.mqtt.client as mqtt
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
 import signal
-import sys
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Enhanced logging configuration
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('/app/logs/connector.log', mode='a') if os.path.exists('/app/logs') else logging.StreamHandler()
+    ]
+)
 logger = logging.getLogger(__name__)
+
+# Set specific log levels for different operations
+logging.getLogger('kafka').setLevel(logging.WARNING)
+logging.getLogger('paho').setLevel(logging.WARNING)
 
 class MQTTKafkaConnector:
     def __init__(self):
@@ -19,6 +30,24 @@ class MQTTKafkaConnector:
         self.kafka_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:29092')
         self.kafka_topic = os.getenv('KAFKA_TOPIC', 'raw_iot_data')
         self.mqtt_topic_pattern = os.getenv('MQTT_TOPIC_PATTERN', 'cmnd/#')
+        
+        # MQTT authentication
+        self.mqtt_username = self._get_secret_from_file(
+            os.getenv('MQTT_USERNAME_FILE'), 
+            os.getenv('MQTT_USERNAME', 'iot_user')
+        )
+        self.mqtt_password = self._get_secret_from_file(
+            os.getenv('MQTT_PASSWORD_FILE'),
+            os.getenv('MQTT_PASSWORD', 'iot_password')
+        )
+        
+        # Kafka optimization settings
+        self.kafka_batch_size = int(os.getenv('KAFKA_BATCH_SIZE', '16384'))
+        self.kafka_linger_ms = int(os.getenv('KAFKA_LINGER_MS', '10'))
+        self.kafka_buffer_memory = int(os.getenv('KAFKA_BUFFER_MEMORY', '33554432'))
+        self.kafka_compression_type = os.getenv('KAFKA_COMPRESSION_TYPE', 'snappy')
+        self.kafka_retries = int(os.getenv('KAFKA_RETRIES', '3'))
+        self.kafka_max_in_flight = int(os.getenv('KAFKA_MAX_IN_FLIGHT', '5'))
         
         self.mqtt_client = None
         self.kafka_producer = None
@@ -56,25 +85,58 @@ class MQTTKafkaConnector:
             logger.error(f"Failed to connect to MQTT broker, return code {rc}")
 
     def _on_mqtt_message(self, client, userdata, msg):
+        """
+        Process incoming MQTT message and forward to Kafka.
+        
+        Args:
+            client: MQTT client instance
+            userdata: User-defined data
+            msg: MQTT message
+        """
         try:
+            if not msg or not msg.topic:
+                logger.warning("Received empty MQTT message")
+                return
+                
             topic = msg.topic
-            payload = msg.payload.decode('utf-8')
+            
+            # Decode payload with error handling
+            try:
+                payload = msg.payload.decode('utf-8')
+            except UnicodeDecodeError as e:
+                logger.error(f"Failed to decode MQTT payload for topic {topic}: {e}")
+                return
+            
+            if not payload:
+                logger.debug(f"Empty payload for topic {topic}")
+                return
             
             device_id = self._extract_device_id(topic)
+            if device_id == "unknown":
+                logger.warning(f"Could not extract device ID from topic: {topic}")
+            
+            # Parse JSON payload safely
+            parsed_payload = payload
+            if self._is_json(payload):
+                try:
+                    parsed_payload = json.loads(payload)
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Invalid JSON in payload for topic {topic}: {e}")
+                    # Keep as string if JSON parsing fails
             
             kafka_record = {
                 'original_topic': topic,
                 'device_id': device_id,
-                'payload': json.loads(payload) if self._is_json(payload) else payload,
+                'payload': parsed_payload,
                 'timestamp': time.time()
             }
             
             self._send_to_kafka(device_id, kafka_record)
             
-            logger.debug(f"Processed message from {topic} for device {device_id}")
+            logger.debug(f"Processed message from {topic} for device {device_id} (payload size: {len(payload)} bytes)")
             
         except Exception as e:
-            logger.error(f"Error processing MQTT message: {e}")
+            logger.error(f"Unexpected error processing MQTT message from topic {getattr(msg, 'topic', 'unknown')}: {e}", exc_info=True)
 
     def _is_json(self, payload: str) -> bool:
         try:
@@ -84,47 +146,98 @@ class MQTTKafkaConnector:
             return False
 
     def _send_to_kafka(self, key: str, value: Dict[str, Any]):
+        """
+        Send message to Kafka with enhanced error handling.
+        
+        Args:
+            key: Message key (device ID)
+            value: Message value (MQTT data)
+        """
         try:
+            if not key or not value:
+                logger.warning(f"Invalid Kafka message: key='{key}', value={bool(value)}")
+                return
+                
+            # Serialize value to JSON
+            try:
+                json_value = json.dumps(value, default=str)
+            except (TypeError, ValueError) as e:
+                logger.error(f"Failed to serialize message to JSON: {e}")
+                logger.debug(f"Problematic value: {value}")
+                return
+            
             future = self.kafka_producer.send(
                 self.kafka_topic,
                 key=key.encode('utf-8'),
-                value=json.dumps(value).encode('utf-8')
+                value=json_value.encode('utf-8')
             )
             
-            future.add_callback(self._on_kafka_success)
-            future.add_errback(self._on_kafka_error)
+            future.add_callback(lambda metadata: self._on_kafka_success(metadata, key))
+            future.add_errback(lambda error: self._on_kafka_error(error, key))
             
         except Exception as e:
-            logger.error(f"Error sending to Kafka: {e}")
+            logger.error(f"Unexpected error sending to Kafka for key '{key}': {e}", exc_info=True)
 
-    def _on_kafka_success(self, record_metadata):
-        logger.debug(f"Message sent to Kafka topic {record_metadata.topic} partition {record_metadata.partition}")
+    def _on_kafka_success(self, record_metadata, key=None):
+        """Handle successful Kafka message send."""
+        logger.debug(
+            f"Message sent successfully to Kafka topic {record_metadata.topic} "
+            f"partition {record_metadata.partition} offset {record_metadata.offset} "
+            f"(key: {key})"
+        )
 
-    def _on_kafka_error(self, excp):
-        logger.error(f"Failed to send message to Kafka: {excp}")
+    def _on_kafka_error(self, excp, key=None):
+        """Handle failed Kafka message send."""
+        logger.error(f"Failed to send message to Kafka for key '{key}': {excp}")
+        # Could implement retry logic here if needed
 
+    def _get_secret_from_file(self, secret_file: str, default_value: str) -> str:
+        """Securely load secret from file or environment variable."""
+        if secret_file and os.path.exists(secret_file):
+            try:
+                with open(secret_file, 'r') as f:
+                    return f.read().strip()
+            except Exception as e:
+                logger.warning(f"Failed to read secret file {secret_file}: {e}")
+        return default_value
+    
     def _setup_mqtt_client(self):
         self.mqtt_client = mqtt.Client()
         self.mqtt_client.on_connect = self._on_mqtt_connect
         self.mqtt_client.on_message = self._on_mqtt_message
         
+        # Set authentication credentials
+        if self.mqtt_username and self.mqtt_password:
+            self.mqtt_client.username_pw_set(self.mqtt_username, self.mqtt_password)
+            logger.info(f"MQTT authentication configured for user: {self.mqtt_username}")
+        
         broker_parts = self.mqtt_broker.split(':')
         host = broker_parts[0]
         port = int(broker_parts[1]) if len(broker_parts) > 1 else 1883
         
-        logger.info(f"Connecting to MQTT broker at {host}:{port}")
+        logger.info(f"Connecting to MQTT broker at {host}:{port} with authentication")
         self.mqtt_client.connect(host, port, 60)
 
     def _setup_kafka_producer(self):
+        """Setup optimized Kafka producer with performance settings."""
         self.kafka_producer = KafkaProducer(
             bootstrap_servers=self.kafka_servers.split(','),
             value_serializer=lambda v: v,
             key_serializer=lambda k: k,
-            acks='all',
-            retries=3,
-            max_in_flight_requests_per_connection=1
+            # Performance optimizations
+            batch_size=self.kafka_batch_size,
+            linger_ms=self.kafka_linger_ms,
+            buffer_memory=self.kafka_buffer_memory,
+            compression_type=self.kafka_compression_type,
+            # Reliability settings
+            acks=1,  # Balance between performance and durability
+            retries=self.kafka_retries,
+            max_in_flight_requests_per_connection=self.kafka_max_in_flight,
+            # Error handling
+            retry_backoff_ms=100,
+            request_timeout_ms=30000
         )
-        logger.info(f"Connected to Kafka at {self.kafka_servers}")
+        logger.info(f"Connected to Kafka at {self.kafka_servers} with optimized settings")
 
     def run(self):
         logger.info("Starting MQTT-Kafka Connector")
