@@ -52,7 +52,7 @@ services:
     image: postgres:15
     container_name: device-params-db
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-db_arnm}
+      POSTGRES_DB: ${POSTGRES_DB:-VT_DeviceManagement}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
     ports:
@@ -132,14 +132,19 @@ services:
       - iot-network
     restart: unless-stopped
 
-  # F2 Device Simulator
+  # F2 Device Simulator with mTLS
   f2-simulator:
     build: ./services/f2_simulator
     container_name: f2-simulator
     depends_on:
       - mosquitto
     environment:
-      MQTT_BROKER: mosquitto:1883
+      MQTT_BROKER: mosquitto:8883  # Use secure mTLS port
+      PUBLISH_INTERVAL: 5
+      DEVICE_COUNT: 2
+      CERTS_PATH: /app/mqtt-security/certs/devices
+    volumes:
+      - ./mqtt-security:/app/mqtt-security:ro  # Mount certificates
     networks:
       - iot-network
     restart: unless-stopped

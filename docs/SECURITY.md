@@ -24,12 +24,14 @@ The MQTT Architecture POC implements comprehensive security measures to protect 
 | Issue | Status | Solution |
 |-------|--------|----------|
 | **Hardcoded credentials** | ✅ Fixed | Docker secrets management |
-| **No MQTT authentication** | ✅ Fixed | Username/password authentication |
+| **No MQTT authentication** | ✅ Fixed | mTLS + username/password authentication |
 | **SQL injection risks** | ✅ Fixed | Parameterized queries + input validation |
 | **Root containers** | ✅ Fixed | Non-root users in all containers |
 | **Exposed database ports** | ✅ Fixed | Internal network only |
 | **No connection pooling** | ✅ Fixed | PgBouncer + threaded pools |
 | **Missing input validation** | ✅ Fixed | Strict validation + whitelisting |
+| **Device authentication** | ✅ Implemented | mTLS with client certificates |
+| **Topic authorization** | ✅ Implemented | MAC-based ACL system |
 
 ## 🛡️ Implemented Security Measures
 
@@ -90,7 +92,48 @@ cursor.execute(query, (validated_mac_addr,))
 - Input length limits
 - Whitelist-based mode validation
 
-### 4. Container Security
+### 4. mTLS Device Authentication
+
+**Implementation**: Mutual TLS authentication for F2 Smart Controllers
+**Solution**: Client certificate validation with MAC-based authorization
+
+```bash
+# Device registration with certificate generation
+cd mqtt-security/scripts
+python3 register_f2_controller.py e4:fd:45:f6:54:be --serial-number F2-001234
+```
+
+**Security Architecture**:
+- **Port 8883**: Secure mTLS port for F2 controllers
+- **Port 1883**: Internal services with username/password authentication
+- **Certificate Authority**: Internal CA for device certificate signing
+- **MAC-based ACL**: Device-specific topic permissions
+
+**Certificate Management**:
+```
+mqtt-security/
+├── certs/
+│   ├── ca.crt                    # Certificate Authority
+│   ├── ca.key                    # CA private key
+│   ├── server.crt                # MQTT broker certificate
+│   ├── devices/                  # Device certificates
+│   │   └── <MAC>/
+│   │       ├── device.crt        # Device certificate
+│   │       ├── device.key        # Device private key
+│   │       └── mqtt_config.json  # Connection config
+│   └── device_registry.json      # Device tracking
+└── mosquitto/
+    ├── mosquitto.conf            # Dual-port configuration
+    └── acl_file.conf             # Topic authorization
+```
+
+**Topic Authorization**:
+- Devices can only access topics matching their MAC address
+- Example: Device `e4-fd-45-f6-54-be` can only access `f2-e4-fd-45-f6-54-be/*`
+- Fine-grained permissions for read/write operations
+- Automatic ACL generation during device registration
+
+### 5. Container Security
 
 **Problem**: Containers running as root
 **Solution**: Dedicated non-root users
@@ -146,18 +189,92 @@ chmod 700 secrets/           # Directory: owner only
 chmod 600 secrets/*.txt      # Files: owner read/write only
 ```
 
+### Code Implementation
+
+All services implement the standardized `_load_secret_from_docker_file()` method for secure credential loading:
+
+```python
+def _load_secret_from_docker_file(self, secret_file_path: Optional[str], 
+                                 fallback_value: str, 
+                                 secret_name: str = "credential") -> str:
+    """
+    Load sensitive data from Docker secrets file or fallback to environment variable.
+    
+    This method implements the Docker secrets security pattern, where sensitive data
+    is mounted as read-only files in containers instead of being exposed through
+    environment variables.
+    
+    Args:
+        secret_file_path: Path to Docker secret file (e.g., /run/secrets/db_password)
+        fallback_value: Fallback value from environment variable
+        secret_name: Name of secret for logging purposes
+        
+    Returns:
+        Secret value from file or fallback
+    """
+    if secret_file_path and os.path.exists(secret_file_path):
+        try:
+            with open(secret_file_path, 'r') as f:
+                logger.info(f"Successfully loaded {secret_name} from Docker secret file")
+                return f.read().strip()
+        except Exception as e:
+            logger.warning(f"Failed to read {secret_name} from {secret_file_path}: {e}")
+    
+    logger.info(f"Using {secret_name} from environment variable fallback")
+    return fallback_value
+```
+
+**Security Benefits**:
+- ✅ **No Environment Variable Exposure**: Secrets aren't visible in process lists
+- ✅ **File-based Security**: Docker mounts secrets as read-only files  
+- ✅ **Audit Logging**: Clear logging of secret loading methods
+- ✅ **Graceful Fallback**: Development mode compatibility
+- ✅ **Consistent Implementation**: Same pattern across all services
+
+**Service Implementation**:
+| Service | Credentials Loaded | Method Usage |
+|---------|-------------------|--------------|
+| **Data Processor** | PostgreSQL password | `_load_secret_from_docker_file()` |
+| **MQTT-Kafka Connector** | MQTT username/password | `_load_secret_from_docker_file()` |
+| **Kafka-TimescaleDB Sink** | TimescaleDB password | `_load_secret_from_docker_file()` |
+| **F2 Simulator** | MQTT credentials | `_load_secret_from_docker_file()` |
+
 ## 🦟 MQTT Authentication
 
-### Configuration
+### Dual Authentication Model
 
-The MQTT broker requires authentication for all connections:
+The MQTT broker implements **two different authentication methods** for different types of clients:
+
+#### **1. Internal Services (Port 1883)** - Username/Password Authentication
+**Used by**: MQTT-Kafka Connector, internal monitoring services
 
 ```conf
-# mosquitto.conf
+# mosquitto.conf - Internal port configuration
 listener 1883
 allow_anonymous false
 password_file /mosquitto/config/passwd
 ```
+
+#### **2. F2 Controllers (Port 8883)** - mTLS Authentication  
+**Used by**: F2 Smart Controllers, IoT devices
+
+```conf
+# mosquitto.conf - Secure mTLS port configuration
+listener 8883
+cafile /mosquitto/config/certs/ca.crt
+certfile /mosquitto/config/certs/server.crt
+keyfile /mosquitto/config/certs/server.key
+require_certificate true
+use_identity_as_username true
+acl_file /mosquitto/config/acl_file.conf
+```
+
+### Security Architecture
+
+| Client Type | Port | Authentication Method | Access Level |
+|-------------|------|----------------------|-------------|
+| **Internal Services** | 1883 | Username/Password | Full topic access |
+| **F2 Controllers** | 8883 | mTLS Client Certificates | MAC-based ACL restrictions |
 
 ### Password File Management
 
@@ -174,18 +291,39 @@ mosquitto_passwd mosquitto/passwd username
 
 ### Client Authentication
 
-All MQTT clients (connector, simulator) use authentication:
+#### **Internal Services Authentication** (Port 1883)
+
+Services like MQTT-Kafka Connector use username/password authentication:
 
 ```python
-# Client configuration
+# Internal service client configuration
 client.username_pw_set(username, password)
-client.connect(host, port, keepalive)
+client.connect("mosquitto", 1883, keepalive)  # Internal port
 ```
+
+#### **F2 Controller Authentication** (Port 8883)
+
+F2 devices use mTLS with client certificates:
+
+```python
+# F2 device client configuration
+context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
+context.check_hostname = False
+context.load_verify_locations("/path/to/ca.crt")
+context.load_cert_chain("/path/to/device.crt", "/path/to/device.key")
+
+client.tls_set_context(context)
+client.connect("mosquitto", 8883, keepalive)  # Secure mTLS port
+```
+
+**Device Registration Required**: F2 controllers must be registered using `register_f2_controller.py` before they can connect.
 
 ### Testing Authentication
 
+#### **Test Internal Service Authentication** (Port 1883)
+
 ```bash
-# Test with valid credentials
+# Test with valid username/password credentials
 mosquitto_pub -h localhost -p 1883 \
   -u "$(cat secrets/mqtt_username.txt)" \
   -P "$(cat secrets/mqtt_password.txt)" \
@@ -195,6 +333,24 @@ mosquitto_pub -h localhost -p 1883 \
 mosquitto_pub -h localhost -p 1883 \
   -t "test/topic" -m "test message"
 ```
+
+#### **Test F2 Controller Authentication** (Port 8883)
+
+```bash
+# Test with valid mTLS certificates
+mosquitto_pub -h localhost -p 8883 \
+  --cafile mqtt-security/certs/ca.crt \
+  --cert mqtt-security/certs/devices/e4-fd-45-f6-54-be/device.crt \
+  --key mqtt-security/certs/devices/e4-fd-45-f6-54-be/device.key \
+  -t "cmnd/f2-e4-fd-45-f6-54-be/sensor-mode/J1/sensor-1" \
+  -m '{"temperature": 23.5}'
+
+# Test without certificates (should fail)
+mosquitto_pub -h localhost -p 8883 \
+  -t "test/topic" -m "test message"
+```
+
+**Note**: F2 devices can only publish to topics matching their MAC address due to ACL restrictions.
 
 ## 🗄️ Database Security
 

@@ -8,11 +8,11 @@ This is an MQTT Architecture Proof of Concept (POC) that demonstrates a complete
 
 The system consists of the following main components:
 
-1. **F2 Device Simulator** - Simulates IoT devices publishing MQTT messages
-2. **MQTT Broker (Mosquitto)** - Central message hub for device communications
+1. **F2 Device Simulator** - Simulates IoT devices with mTLS authentication
+2. **MQTT Broker (Mosquitto)** - Dual-port message hub (1883 internal, 8883 mTLS)
 3. **MQTT-Kafka Connector** - Bridges MQTT messages to Kafka topics
 4. **Apache Kafka** - Message streaming platform with raw and processed data topics
-5. **PostgreSQL** - Stores device parameters and metadata
+5. **PostgreSQL** - Stores device parameters, templates, and metadata
 6. **Data Processor** - Transforms raw data into meaningful measurements
 7. **TimescaleDB** - Time-series database for analytics and storage
 8. **Kafka-TimescaleDB Sink** - Persists processed data to TimescaleDB
@@ -53,7 +53,7 @@ make clean
 - **Health Monitor**: 8000
 - **cAdvisor**: 8080
 - **Node Exporter**: 9100
-- **MQTT Broker**: 1883, 9001
+- **MQTT Broker**: 1883 (internal), 8883 (mTLS), 9001 (WebSocket)
 - **Kafka**: 9092
 - **PostgreSQL**: 5432
 - **TimescaleDB**: 5433
@@ -114,10 +114,33 @@ Comprehensive documentation is available in the `@doc/` directory:
 
 ## Data Flow
 
-1. **F2 Simulators** publish MQTT messages to topics like `cmnd/f2-{MAC}/{MODE}/{CONNECTOR}/{COMPONENT}`
-2. **MQTT-Kafka Connector** subscribes to `cmnd/#` and forwards to Kafka topic `raw_iot_data`
+1. **F2 Simulators** authenticate with mTLS certificates and publish MQTT messages to topics like `cmnd/f2-{MAC}/{MODE}/{CONNECTOR}/{COMPONENT}` on secure port 8883
+2. **MQTT-Kafka Connector** subscribes to `cmnd/#` on internal port 1883 and forwards to Kafka topic `raw_iot_data`
 3. **Data Processor** consumes `raw_iot_data`, looks up device parameters in PostgreSQL, and publishes enriched data to `decoded_iot_data`
 4. **Kafka-TimescaleDB Sink** consumes `decoded_iot_data` and batch-inserts into TimescaleDB `iot_measurements` hypertable
+
+## mTLS Security
+
+The system implements certificate-based authentication for F2 devices:
+
+### Device Registration
+```bash
+# Register a new F2 device with mTLS certificate
+cd mqtt-security/scripts
+python3 register_f2_controller.py <MAC_ADDRESS> --serial-number <SERIAL>
+```
+
+### Certificate Management
+- **CA Certificate**: `mqtt-security/certs/ca.crt`
+- **Device Certificates**: `mqtt-security/certs/devices/<MAC>/device.crt`
+- **Device Registry**: `mqtt-security/certs/device_registry.json`
+- **ACL Authorization**: `mqtt-security/mosquitto/acl_file.conf`
+
+### Security Architecture
+- **Port 8883**: mTLS for F2 controllers with client certificates
+- **Port 1883**: Username/password for internal services
+- **MAC-based ACL**: Device-specific topic permissions
+- **Certificate Validation**: CA-signed certificates required for device access
 
 ## Example Device Parameters
 
@@ -148,6 +171,16 @@ make mqtt-monitor
 
 # Check Kafka consumer lag
 docker exec kafka kafka-consumer-groups.sh --bootstrap-server localhost:9092 --list
+
+# Test mTLS connection
+cd mqtt-security/scripts
+python3 test_registration.py
+
+# View device registry
+cat mqtt-security/certs/device_registry.json
+
+# Check MQTT broker logs for mTLS connections
+docker logs mqtt-broker
 ```
 
 ## Development Notes
@@ -157,6 +190,29 @@ docker exec kafka kafka-consumer-groups.sh --bootstrap-server localhost:9092 --l
 - TimescaleDB provides automatic time-series partitioning and compression
 - Monitoring stack provides full observability with metrics, logs, and health checks
 - The system is designed for horizontal scaling and production deployment
+
+### Code Architecture
+
+**Docker Secrets Pattern**: All services implement the `_load_secret_from_docker_file()` method for secure credential management:
+
+```python
+def _load_secret_from_docker_file(self, secret_file_path: Optional[str], 
+                                 fallback_value: str, 
+                                 secret_name: str = "credential") -> str:
+    """
+    Load sensitive data from Docker secrets file or fallback to environment variable.
+    
+    This method implements the Docker secrets security pattern, where sensitive data
+    is mounted as read-only files in containers instead of being exposed through
+    environment variables.
+    """
+```
+
+**Usage in Services**:
+- **Data Processor**: Database password loading
+- **MQTT-Kafka Connector**: MQTT username/password loading  
+- **Kafka-TimescaleDB Sink**: TimescaleDB password loading
+- **F2 Simulator**: MQTT authentication credentials
 
 ## Service Dependencies
 

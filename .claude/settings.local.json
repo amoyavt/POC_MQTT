@@ -10,7 +10,14 @@
       "Bash(openssl genrsa:*)",
       "Bash(openssl req:*)",
       "Bash(openssl x509:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(python:*)",
+      "Bash(docker stop:*)",
+      "Bash(docker rm:*)",
+      "Bash(docker exec:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

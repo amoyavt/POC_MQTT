@@ -1,8 +1,86 @@
-# Data Models
-
-## Overview
+## Database Schema
 
 The database contains devices that can function as controllers or as devices that connect to controllers. Each device is created from a `DeviceTemplate`, and each `DeviceTemplate` has data points that help decode the raw data.
+
+
+```mermaid
+erDiagram
+    "DeviceType" {
+        INT DeviceTypeId PK
+        VARCHAR Name
+    }
+    "DeviceTemplate" {
+        INT DeviceTemplateId PK
+        VARCHAR Name
+        VARCHAR Model
+        TEXT Description
+        BYTEA Image
+        INT DeviceTypeId FK
+    }
+    "Device" {
+        INT DeviceId PK
+        VARCHAR DeviceName
+        INT DeviceTemplateId FK
+        VARCHAR ClaimingCode
+        VARCHAR SerialNumber
+        VARCHAR Uuid
+        VARCHAR MacAddress
+        VARCHAR IpAddress
+        VARCHAR PcbVersion
+    }
+    "Connector" {
+        INT ConnectorId PK
+        INT ControllerId FK
+        INT ConnectorNumber
+        INT ConnectorTypeId
+    }
+    "Pin" {
+        INT PinId PK
+        INT ConnectorId FK
+        INT Position
+        INT DeviceId FK
+    }
+    "DataPointIcon" {
+        INT DataPointIconId PK
+        VARCHAR IconName
+    }
+    "DataPoint" {
+        INT DataPointId PK
+        INT DeviceTemplateId FK
+        VARCHAR Label
+        INT DataPointIconId FK
+        VARCHAR DataFormat
+        VARCHAR DataEncoding
+        INT Offset
+        INT Length
+        VARCHAR Prepend
+        VARCHAR Append
+        INT WholeNumber
+        INT Decimals
+        VARCHAR RealTimeChart
+        VARCHAR HistoricalChart
+    }
+    "iot_measurements" {
+        TIMESTAMPTZ timestamp PK
+        VARCHAR device_id PK
+        VARCHAR connector_mode PK
+        VARCHAR component_type PK
+        VARCHAR pin_position PK
+        DOUBLE_PRECISION value
+        VARCHAR unit
+        VARCHAR topic
+    }
+
+    "DeviceType" ||--o{ "DeviceTemplate" : "has"
+    "DeviceTemplate" ||--o{ "Device" : "has"
+    "DeviceTemplate" ||--o{ "DataPoint" : "has"
+    "Device" ||--o{ "Connector" : "has"
+    "Connector" ||--o{ "Pin" : "has"
+    "Device" ||--|{ "Pin" : "is"
+    "DataPointIcon" ||--o{ "DataPoint" : "has"
+    "Device" ||--o{ "iot_measurements" : "generates"
+
+```
 
 ## Device
 
@@ -67,7 +145,7 @@ public class DataPoint
 }
 ```
 
-## Controller Architecture
+## Controller
 
 A controller is a type of device that has connectors. Each connector has pins, and each pin has a connected device with different functionality. Here we focus on serial sensor types.
 

@@ -38,9 +38,10 @@ class KafkaTimescaleSink:
         self.ts_host = os.getenv('TIMESCALE_HOST', 'timescaledb')
         self.ts_db = os.getenv('TIMESCALE_DB', 'timeseries')
         self.ts_user = os.getenv('TIMESCALE_USER', 'ts_user')
-        self.ts_password = self._get_password_from_file(
+        self.ts_password = self._load_secret_from_docker_file(
             os.getenv('TIMESCALE_PASSWORD_FILE'),
-            os.getenv('TIMESCALE_PASSWORD', 'ts_password')
+            os.getenv('TIMESCALE_PASSWORD', 'ts_password'),
+            "TimescaleDB password"
         )
         self.ts_port = os.getenv('TIMESCALE_PORT', '5432')
         
@@ -67,15 +68,34 @@ class KafkaTimescaleSink:
         logger.info(f"Received signal {signum}, shutting down gracefully...")
         self.running = False
 
-    def _get_password_from_file(self, password_file: Optional[str], default_password: str) -> str:
-        """Securely load password from file or environment variable."""
-        if password_file and os.path.exists(password_file):
+    def _load_secret_from_docker_file(self, secret_file_path: Optional[str], 
+                                     fallback_value: str, 
+                                     secret_name: str = "credential") -> str:
+        """
+        Load sensitive data from Docker secrets file or fallback to environment variable.
+        
+        This method implements the Docker secrets security pattern, where sensitive data
+        is mounted as read-only files in containers instead of being exposed through
+        environment variables.
+        
+        Args:
+            secret_file_path: Path to Docker secret file (e.g., /run/secrets/timescale_password)
+            fallback_value: Fallback value from environment variable
+            secret_name: Name of secret for logging purposes
+            
+        Returns:
+            Secret value from file or fallback
+        """
+        if secret_file_path and os.path.exists(secret_file_path):
             try:
-                with open(password_file, 'r') as f:
+                with open(secret_file_path, 'r') as f:
+                    logger.info(f"Successfully loaded {secret_name} from Docker secret file")
                     return f.read().strip()
             except Exception as e:
-                logger.warning(f"Failed to read password file {password_file}: {e}")
-        return default_password
+                logger.warning(f"Failed to read {secret_name} from {secret_file_path}: {e}")
+        
+        logger.info(f"Using {secret_name} from environment variable fallback")
+        return fallback_value
     
     def _setup_database_pool(self):
         """Setup connection pooling for better performance."""

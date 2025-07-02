@@ -1,42 +1,6 @@
-# MQTT Architecture POC - System Overview
-
-## System Architecture
+# MQTT Architecture - System Overview
 
 This document provides a comprehensive overview of the MQTT Architecture Proof of Concept (POC) system, designed for ingesting, processing, and storing IoT data from F2 Smart Controller devices.
-
-## High-Level Architecture Diagram
-
-```mermaid
-graph TD
-    subgraph "IoT Devices"
-        A["F2 Smart Controllers"] -->|MQTT| B("MQTT Broker")
-    end
-
-    subgraph "Data Pipeline"
-        B --> C{"MQTT-Kafka Connector"}
-        C -->|raw_iot_data| D("Kafka")
-        ZK("Zookeeper") -.->|coordination| D
-        D --> E{"Data Processor"}
-        E -->|decoded_iot_data| D
-        D --> F{"Kafka-TimescaleDB Sink"}
-    end
-
-    subgraph "Data Stores"
-        E --> G["PostgreSQL"]
-        F --> H("TimescaleDB")
-    end
-
-    subgraph "Monitoring"
-        M("Prometheus") --> N{"Grafana"}
-        B -->|Metrics| M
-        C -->|Metrics| M
-        D -->|Metrics| M
-        E -->|Metrics| M
-        F -->|Metrics| M
-        G -->|Metrics| M
-        H -->|Metrics| M
-    end
-```
 
 ## Core Components
 
@@ -44,17 +8,25 @@ graph TD
 - **Purpose**: IoT devices that generate sensor data
 - **Output**: MQTT messages with various sensor readings
 - **Topics**: `cmnd/f2-<MAC_ADDR>/<MODE>/<CONNECTOR>/<COMPONENT>-<ID>`
+- **Security**: mTLS authentication with device-specific certificates
+- **Connection**: Secure port 8883 with client certificate validation
 
 ### 2. **MQTT Broker (Mosquitto)**
 - **Purpose**: Central message hub for all F2 device communications
-- **Port**: 1883 (MQTT), 9001 (WebSocket)
-- **Configuration**: `/mosquitto/mosquitto.conf`
+- **Ports**: 
+  - **1883**: Insecure port for internal services (username/password auth)
+  - **8883**: Secure mTLS port for F2 controllers (certificate auth)
+  - **9001**: WebSocket port
+- **Configuration**: `mqtt-security/mosquitto/mosquitto.conf`
+- **Security**: Dual-mode authentication with MAC-based ACL authorization
+- **Certificates**: CA-signed certificates for device authentication
 
 ### 3. **MQTT-Kafka Connector**
 - **Purpose**: Bridges MQTT messages to Kafka topics
-- **Input**: MQTT messages from `cmnd/#` pattern
+- **Input**: MQTT messages from `cmnd/#` pattern (port 1883)
 - **Output**: Kafka topic `raw_iot_data`
 - **Language**: Python with `paho-mqtt` and `kafka-python`
+- **Security**: Username/password authentication on internal port
 
 ### 4. **Zookeeper**
 - **Purpose**: Coordination service for Kafka cluster management
@@ -68,11 +40,18 @@ graph TD
   - `decoded_iot_data` - Processed IoT data
 - **Port**: 9092
 
-### 6. **PostgreSQL (Device Parameters)**
-- **Purpose**: Stores device metadata and processing parameters
-- **Database**: `device_params`
+### 6. **PostgreSQL (Device Management)**
+- **Purpose**: Stores complete device schema including templates, connectors, pins, and data points
+- **Database**: `VT_DeviceManagement` (configurable via `POSTGRES_DB` env var)
 - **Port**: 5432
-- **Key Table**: `device_parameters`
+- **User**: `postgres` (configurable via `POSTGRES_USER` env var)
+- **Key Tables**: 
+  - `Device` - Device instances with MAC addresses and metadata
+  - `DeviceTemplate` - Device type definitions and configurations
+  - `DataPoint` - Data decoding parameters for each device template
+  - `Connector` - Controller connector definitions
+  - `Pin` - Pin-to-device mappings for controllers
+  - `device_parameters` - Legacy parameter lookup table (used by data processor)
 
 ### 7. **Data Processor**
 - **Purpose**: Transforms raw IoT data into meaningful measurements
@@ -94,91 +73,10 @@ graph TD
 
 ## Data Flow
 
-1.  **F2 Simulators** publish MQTT messages to topics like `cmnd/f2-{MAC}/{MODE}/{CONNECTOR}/{COMPONENT}`
-2.  **MQTT-Kafka Connector** subscribes to `cmnd/#` and forwards to Kafka topic `raw_iot_data`
+1.  **F2 Simulators** authenticate using mTLS certificates and publish MQTT messages to topics like `cmnd/f2-{MAC}/{MODE}/{CONNECTOR}/{COMPONENT}` on secure port 8883
+2.  **MQTT-Kafka Connector** subscribes to `cmnd/#` on insecure port 1883 and forwards to Kafka topic `raw_iot_data`
 3.  **Data Processor** consumes `raw_iot_data`, looks up device parameters in PostgreSQL, and publishes enriched data to `decoded_iot_data`
 4.  **Kafka-TimescaleDB Sink** consumes `decoded_iot_data` and batch-inserts into TimescaleDB `iot_measurements` hypertable
-
-## Database Schema
-
-```mermaid
-erDiagram
-    "DeviceType" {
-        INT DeviceTypeId PK
-        VARCHAR Name
-    }
-    "DeviceTemplate" {
-        INT DeviceTemplateId PK
-        VARCHAR Name
-        VARCHAR Model
-        TEXT Description
-        BYTEA Image
-        INT DeviceTypeId FK
-    }
-    "Device" {
-        INT DeviceId PK
-        VARCHAR DeviceName
-        INT DeviceTemplateId FK
-        VARCHAR ClaimingCode
-        VARCHAR SerialNumber
-        VARCHAR Uuid
-        VARCHAR MacAddress
-        VARCHAR IpAddress
-        VARCHAR PcbVersion
-    }
-    "Connector" {
-        INT ConnectorId PK
-        INT ControllerId FK
-        INT ConnectorNumber
-        INT ConnectorTypeId
-    }
-    "Pin" {
-        INT PinId PK
-        INT ConnectorId FK
-        INT Position
-        INT DeviceId FK
-    }
-    "DataPointIcon" {
-        INT DataPointIconId PK
-        VARCHAR IconName
-    }
-    "DataPoint" {
-        INT DataPointId PK
-        INT DeviceTemplateId FK
-        VARCHAR Label
-        INT DataPointIconId FK
-        VARCHAR DataFormat
-        VARCHAR DataEncoding
-        INT Offset
-        INT Length
-        VARCHAR Prepend
-        VARCHAR Append
-        INT WholeNumber
-        INT Decimals
-        VARCHAR RealTimeChart
-        VARCHAR HistoricalChart
-    }
-    "iot_measurements" {
-        TIMESTAMPTZ timestamp PK
-        VARCHAR device_id PK
-        VARCHAR connector_mode PK
-        VARCHAR component_type PK
-        VARCHAR pin_position PK
-        DOUBLE_PRECISION value
-        VARCHAR unit
-        VARCHAR topic
-    }
-
-    "DeviceType" ||--o{ "DeviceTemplate" : "has"
-    "DeviceTemplate" ||--o{ "Device" : "has"
-    "DeviceTemplate" ||--o{ "DataPoint" : "has"
-    "Device" ||--o{ "Connector" : "has"
-    "Connector" ||--o{ "Pin" : "has"
-    "Device" ||--|{ "Pin" : "is"
-    "DataPointIcon" ||--o{ "DataPoint" : "has"
-    "Device" ||--o{ "iot_measurements" : "generates"
-
-```
 
 ## Network Configuration
 
@@ -193,7 +91,20 @@ All components run in the `iot-network` Docker network bridge, enabling inter-se
 
 ## Security Considerations
 
+### **mTLS Implementation**
+- **F2 Device Authentication**: Client certificates signed by internal CA
+- **MAC-based Authorization**: Device-specific topic permissions via ACL
+- **Certificate Management**: Automated device registration and certificate provisioning
+- **Dual-Port Security**: Secure (8883) and internal (1883) MQTT listeners
+
+### **Infrastructure Security**
 - **Network Isolation**: All services run in isolated Docker network
 - **Database Access**: Separate databases with distinct credentials
+- **Secrets Management**: Docker secrets for production deployments
 - **No External Exposure**: Only necessary ports exposed to host system
 - **Logging**: Comprehensive logging without sensitive data exposure
+
+### **Device Registration**
+- **Certificate Provisioning**: `register_f2_controller.py` script for device onboarding
+- **Device Registry**: JSON-based device tracking with certificate expiration
+- **ACL Generation**: Automatic topic permission generation based on device capabilities

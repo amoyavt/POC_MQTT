@@ -3,7 +3,7 @@ import logging
 import os
 import re
 import time
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import paho.mqtt.client as mqtt
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
@@ -32,13 +32,15 @@ class MQTTKafkaConnector:
         self.mqtt_topic_pattern = os.getenv('MQTT_TOPIC_PATTERN', 'cmnd/#')
         
         # MQTT authentication
-        self.mqtt_username = self._get_secret_from_file(
+        self.mqtt_username = self._load_secret_from_docker_file(
             os.getenv('MQTT_USERNAME_FILE'), 
-            os.getenv('MQTT_USERNAME', 'iot_user')
+            os.getenv('MQTT_USERNAME', 'iot_user'),
+            "MQTT username"
         )
-        self.mqtt_password = self._get_secret_from_file(
+        self.mqtt_password = self._load_secret_from_docker_file(
             os.getenv('MQTT_PASSWORD_FILE'),
-            os.getenv('MQTT_PASSWORD', 'iot_password')
+            os.getenv('MQTT_PASSWORD', 'iot_password'),
+            "MQTT password"
         )
         
         # Kafka optimization settings
@@ -191,15 +193,34 @@ class MQTTKafkaConnector:
         logger.error(f"Failed to send message to Kafka for key '{key}': {excp}")
         # Could implement retry logic here if needed
 
-    def _get_secret_from_file(self, secret_file: str, default_value: str) -> str:
-        """Securely load secret from file or environment variable."""
-        if secret_file and os.path.exists(secret_file):
+    def _load_secret_from_docker_file(self, secret_file_path: Optional[str], 
+                                     fallback_value: str, 
+                                     secret_name: str = "credential") -> str:
+        """
+        Load sensitive data from Docker secrets file or fallback to environment variable.
+        
+        This method implements the Docker secrets security pattern, where sensitive data
+        is mounted as read-only files in containers instead of being exposed through
+        environment variables.
+        
+        Args:
+            secret_file_path: Path to Docker secret file (e.g., /run/secrets/mqtt_username)
+            fallback_value: Fallback value from environment variable
+            secret_name: Name of secret for logging purposes
+            
+        Returns:
+            Secret value from file or fallback
+        """
+        if secret_file_path and os.path.exists(secret_file_path):
             try:
-                with open(secret_file, 'r') as f:
+                with open(secret_file_path, 'r') as f:
+                    logger.info(f"Successfully loaded {secret_name} from Docker secret file")
                     return f.read().strip()
             except Exception as e:
-                logger.warning(f"Failed to read secret file {secret_file}: {e}")
-        return default_value
+                logger.warning(f"Failed to read {secret_name} from {secret_file_path}: {e}")
+        
+        logger.info(f"Using {secret_name} from environment variable fallback")
+        return fallback_value
     
     def _setup_mqtt_client(self):
         self.mqtt_client = mqtt.Client()

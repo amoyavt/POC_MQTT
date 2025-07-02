@@ -141,7 +141,7 @@ For detailed information, see [shared/README.md](./shared/README.md).
 
 ### 1. Secure Setup (Recommended for Production)
 ```bash
-# Setup with enhanced security and performance
+# Setup with enhanced security and performance including monitoring
 make secure-setup
 
 # Check system health
@@ -182,7 +182,7 @@ make status
 - **cAdvisor**: http://localhost:8080
 
 ### 🔒 Security Features
-- **MQTT Authentication**: Username/password required
+- **MQTT Authentication**: mTLS for FACES2 Controllers and Username/password for internal services required
 - **Database Security**: No external port exposure
 - **Container Security**: Non-root users, resource limits
 - **Secrets Management**: File-based credential storage
@@ -194,11 +194,10 @@ make status
 - 🏗️ **[Architecture Overview](docs/architecture/overview.md)** - System design and components
 - 🚦 **[Getting Started Guide](docs/DEVELOPER_GUIDE.md)** - Developer onboarding and setup
 - 🐛 **[Debugging & Troubleshooting](docs/DEBUGGING.md)** - Common issues and solutions
-- 📊 **[TimescaleDB Guide](docs/TIMESCALE.md)** - Time-series database usage and optimization
 - 🔒 **[Security Guide](docs/SECURITY.md)** - Security implementation and best practices
 
 ### System Architecture
-- 🔄 **[Data Flow](docs/architecture/data-models.md)** - How data moves through the system
+- 🔄 **[Data Models](docs/architecture/data-models.md)** - How data moves through the system
 - 📡 **[MQTT Topics](docs/architecture/mqtt_topics.md)** - Message structure and routing
 - 🏗️ **[Service Components](docs/architecture/)** - Individual service documentation
   - [MQTT-Kafka Connector](docs/architecture/mqtt-kafka-connector.md)

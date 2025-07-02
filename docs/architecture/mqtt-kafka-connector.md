@@ -7,11 +7,25 @@ The MQTT-Kafka Connector service bridges the MQTT broker and Kafka, transforming
 ## Service Configuration
 
 ### Environment Variables
+
+**Development Mode**:
 ```bash
-MQTT_BROKER=mosquitto:1883          # MQTT broker connection
+MQTT_BROKER=mosquitto:1883          # MQTT broker connection (internal port)
 KAFKA_BOOTSTRAP_SERVERS=kafka:29092 # Kafka cluster connection
 KAFKA_TOPIC=raw_iot_data           # Output Kafka topic
 MQTT_TOPIC_PATTERN=cmnd/#          # MQTT subscription pattern
+MQTT_USERNAME=iot_user             # MQTT authentication username
+MQTT_PASSWORD=iot_password         # MQTT authentication password (fallback)
+```
+
+**Production Mode (Docker Secrets)**:
+```bash
+MQTT_BROKER=mosquitto:1883          # MQTT broker connection (internal port)
+KAFKA_BOOTSTRAP_SERVERS=kafka:29092 # Kafka cluster connection
+KAFKA_TOPIC=raw_iot_data           # Output Kafka topic
+MQTT_TOPIC_PATTERN=cmnd/#          # MQTT subscription pattern
+MQTT_USERNAME_FILE=/run/secrets/mqtt_username  # Secure username file
+MQTT_PASSWORD_FILE=/run/secrets/mqtt_password  # Secure password file
 ```
 
 ### Docker Configuration
@@ -33,9 +47,33 @@ mqtt-kafka-connector:
 #### Key Classes and Methods
 
 - **`MQTTKafkaConnector`**: Main service class
+- **`_load_secret_from_docker_file()`**: Secure credential loading from Docker secrets
 - **`_extract_device_id()`**: Extracts F2 device MAC address from MQTT topic
 - **`_on_mqtt_message()`**: Processes incoming MQTT messages
 - **`_send_to_kafka()`**: Publishes transformed data to Kafka
+
+#### Security Implementation
+
+The service implements secure credential management for MQTT authentication:
+
+```python
+def _load_secret_from_docker_file(self, secret_file_path: Optional[str], 
+                                 fallback_value: str, 
+                                 secret_name: str = "credential") -> str:
+    """
+    Load sensitive data from Docker secrets file or fallback to environment variable.
+    
+    Used for MQTT authentication:
+    - Production: Reads from /run/secrets/mqtt_username and /run/secrets/mqtt_password
+    - Development: Falls back to MQTT_USERNAME and MQTT_PASSWORD environment variables
+    """
+```
+
+**Authentication Flow**:
+1. Service connects to MQTT broker on internal port 1883
+2. Uses username/password authentication (not mTLS)
+3. Subscribes to `cmnd/#` topic pattern to receive F2 device messages
+4. F2 devices connect separately on secure port 8883 using mTLS
 
 #### Message Transformation
 

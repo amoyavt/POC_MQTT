@@ -7,6 +7,8 @@ The Data Processor service is the intelligence layer of the IoT pipeline, respon
 ## Service Configuration
 
 ### Environment Variables
+
+**Development Mode**:
 ```bash
 KAFKA_BOOTSTRAP_SERVERS=kafka:29092    # Kafka cluster connection
 KAFKA_INPUT_TOPIC=raw_iot_data         # Input topic for raw data
@@ -14,7 +16,19 @@ KAFKA_OUTPUT_TOPIC=decoded_iot_data    # Output topic for processed data
 POSTGRES_HOST=postgres                 # Device parameters database
 POSTGRES_DB=device_params              # Database name
 POSTGRES_USER=iot_user                 # Database username
-POSTGRES_PASSWORD=iot_password         # Database password
+POSTGRES_PASSWORD=iot_password         # Database password (fallback)
+POSTGRES_PORT=5432                     # Database port
+```
+
+**Production Mode (Docker Secrets)**:
+```bash
+KAFKA_BOOTSTRAP_SERVERS=kafka:29092    # Kafka cluster connection
+KAFKA_INPUT_TOPIC=raw_iot_data         # Input topic for raw data
+KAFKA_OUTPUT_TOPIC=decoded_iot_data    # Output topic for processed data
+POSTGRES_HOST=postgres                 # Device parameters database
+POSTGRES_DB=device_params              # Database name
+POSTGRES_USER=iot_user                 # Database username
+POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password  # Secure password file
 POSTGRES_PORT=5432                     # Database port
 ```
 
@@ -37,10 +51,28 @@ data-processor:
 #### Key Classes and Methods
 
 - **`DataProcessor`**: Main service class
+- **`_load_secret_from_docker_file()`**: Secure credential loading from Docker secrets
 - **`_parse_mqtt_topic()`**: Extracts device metadata from MQTT topic structure
 - **`_get_device_parameters()`**: Database lookup for device-specific parameters
 - **`_decode_value()`**: Transforms raw data based on encoding type
 - **`_process_message()`**: Main message processing pipeline
+
+#### Security Implementation
+
+The service implements secure credential management using the Docker secrets pattern:
+
+```python
+def _load_secret_from_docker_file(self, secret_file_path: Optional[str], 
+                                 fallback_value: str, 
+                                 secret_name: str = "credential") -> str:
+    """
+    Load sensitive data from Docker secrets file or fallback to environment variable.
+    
+    Used for PostgreSQL password loading:
+    - Production: Reads from /run/secrets/postgres_password
+    - Development: Falls back to POSTGRES_PASSWORD environment variable
+    """
+```
 
 #### Topic Parsing Logic
 

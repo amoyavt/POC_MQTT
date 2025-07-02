@@ -1,0 +1,20 @@
+{
+  "mqtt": {
+    "host": "mqtt-broker",
+    "port": 8883,
+    "client_id": "f2-e4-fd-45-f6-54-be",
+    "username": "e4-fd-45-f6-54-be",
+    "tls": {
+      "ca_cert": "/certs/ca.crt",
+      "client_cert": "/certs/device.crt",
+      "client_key": "/certs/device.key",
+      "verify_mode": "required"
+    }
+  },
+  "topics": {
+    "base": "f2-e4-fd-45-f6-54-be",
+    "general": "general",
+    "status": "system/status",
+    "heartbeat": "system/heartbeat"
+  }
+}
