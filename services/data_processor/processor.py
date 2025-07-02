@@ -266,7 +266,7 @@ class DataProcessor:
         # Secure parameterized query with exact match (no ILIKE)
         query = '''
         SELECT dp."DataPointId", dp."Label", dp."Offset", dp."Length", 
-               dp."DataFormat", dp."Decimals", dp."Append"
+               dp."DataEncoding", dp."Decimals", dp."Append"
         FROM "DataPoint" dp
         JOIN "DeviceTemplate" dt ON dp."DeviceTemplateId" = dt."DeviceTemplateId"
         JOIN "Device" d ON dt."DeviceTemplateId" = d."DeviceTemplateId"
@@ -318,7 +318,7 @@ class DataProcessor:
         try:
             offset = data_point['Offset']
             length = data_point['Length']
-            data_format = data_point['DataFormat']
+            data_encoding = data_point['DataEncoding']
             
             hex_data = hex_data.replace(" ", "")
             
@@ -334,12 +334,12 @@ class DataProcessor:
 
             decoded_value = None
             
-            if data_format == 'Int16':
+            if data_encoding == 'Int16':
                 decoded_value = struct.unpack('>h', byte_data)[0]
-            elif data_format == 'Uint16':
+            elif data_encoding == 'Uint16':
                 decoded_value = struct.unpack('>H', byte_data)[0]
             else:
-                logger.warning(f"Unsupported data format: '{data_format}' for data point '{data_point['Label']}'")
+                logger.warning(f"Unsupported data encoding: '{data_encoding}' for data point '{data_point['Label']}'")
                 return None
 
             if 'Decimals' in data_point and data_point['Decimals'] > 0:

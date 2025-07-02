@@ -1,17 +1,21 @@
 services:
-  # MQTT Broker
+  # MQTT Broker with mTLS Security
   mosquitto:
     image: eclipse-mosquitto:2.0
     container_name: mqtt-broker
     ports:
-      - "1883:1883"
-      - "9001:9001"
+      - "1883:1883"  # Insecure port for internal services
+      - "8883:8883"  # Secure mTLS port for F2 controllers
+      - "9001:9001"  # WebSocket port
     volumes:
-      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./mqtt-security/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./mqtt-security/mosquitto/acl_file.conf:/mosquitto/config/acl_file.conf
+      - ./mqtt-security/certs:/mosquitto/config/certs
       - mosquitto_data:/mosquitto/data
       - mosquitto_logs:/mosquitto/log
     networks:
       - iot-network
+    restart: unless-stopped
 
   # Zookeeper for Kafka
   zookeeper:
@@ -48,9 +52,9 @@ services:
     image: postgres:15
     container_name: device-params-db
     environment:
-      POSTGRES_DB: device_params
-      POSTGRES_USER: iot_user
-      POSTGRES_PASSWORD: iot_password
+      POSTGRES_DB: ${POSTGRES_DB:-db_arnm}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
     ports:
       - "5432:5432"
     volumes:
@@ -102,9 +106,9 @@ services:
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       POSTGRES_HOST: postgres
-      POSTGRES_DB: device_params
-      POSTGRES_USER: iot_user
-      POSTGRES_PASSWORD: iot_password
+      POSTGRES_DB: ${POSTGRES_DB:-db_arnm}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
     networks:
       - iot-network
     restart: unless-stopped

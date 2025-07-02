@@ -122,13 +122,13 @@ INSERT INTO "Pin" ("ConnectorId", "Position", "DeviceId") VALUES
 
 -- Data Points for the Sensor Templates
 -- Environmental Sensor
-INSERT INTO "DataPoint" ("DeviceTemplateId", "Label", "DataPointIconId", "DataFormat", "Offset", "Length", "Decimals", "Append") VALUES
-((SELECT "DeviceTemplateId" FROM "DeviceTemplate" WHERE "Name" = 'Environmental Sensor'), 'Temperature', 1, 'Int16', 0, 2, 2, ' °C'),
-((SELECT "DeviceTemplateId" FROM "DeviceTemplate" WHERE "Name" = 'Environmental Sensor'), 'Humidity', 2, 'Uint16', 2, 2, 2, ' %'),
-((SELECT "DeviceTemplateId" FROM "DeviceTemplate" WHERE "Name" = 'Environmental Sensor'), 'CO2', 6, 'Uint16', 4, 2, 0, ' ppm');
+INSERT INTO "DataPoint" ("DeviceTemplateId", "Label", "DataPointIconId", "DataFormat", "DataEncoding", "Offset", "Length", "Decimals", "Append") VALUES
+((SELECT "DeviceTemplateId" FROM "DeviceTemplate" WHERE "Name" = 'Environmental Sensor'), 'Temperature', 1, 'numeric', 'Int16', 0, 2, 2, ' °C'),
+((SELECT "DeviceTemplateId" FROM "DeviceTemplate" WHERE "Name" = 'Environmental Sensor'), 'Humidity', 2, 'numeric', 'Uint16', 2, 2, 2, ' %'),
+((SELECT "DeviceTemplateId" FROM "DeviceTemplate" WHERE "Name" = 'Environmental Sensor'), 'CO2', 6, 'numeric', 'Uint16', 4, 2, 0, ' ppm');
 
 -- Power Monitor
-INSERT INTO "DataPoint" ("DeviceTemplateId", "Label", "DataPointIconId", "DataFormat", "Offset", "Length", "Decimals", "Append") VALUES
-((SELECT "DeviceTemplateId" FROM "DeviceTemplate" WHERE "Name" = 'Power Monitor'), 'Voltage', 4, 'Uint16', 0, 2, 1, ' V'),
-((SELECT "DeviceTemplateId" FROM "DeviceTemplate" WHERE "Name" = 'Power Monitor'), 'Current', 5, 'Int16', 2, 2, 3, ' A');
+INSERT INTO "DataPoint" ("DeviceTemplateId", "Label", "DataPointIconId", "DataFormat", "DataEncoding", "Offset", "Length", "Decimals", "Append") VALUES
+((SELECT "DeviceTemplateId" FROM "DeviceTemplate" WHERE "Name" = 'Power Monitor'), 'Voltage', 4, 'numeric', 'Uint16', 0, 2, 1, ' V'),
+((SELECT "DeviceTemplateId" FROM "DeviceTemplate" WHERE "Name" = 'Power Monitor'), 'Current', 5, 'numeric', 'Int16', 2, 2, 3, ' A');
 

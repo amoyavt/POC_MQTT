@@ -51,19 +51,21 @@ self.devices = [
 
 ## Device Modes and Components
 
+For detailed information about MQTT topic structure and payload formats, see [MQTT Topics Documentation](mqtt_topics.md).
+
 ### Access Control Mode
 **Components**:
 - Door Sensors
-- Electric Strikes
+- Electric Strikes  
 - Exit Buttons
 - QR/NFC Readers
 
-**Topics**:
+**Example Topics**:
 ```
-cmnd/f2-{MAC}/access-control-mode/J1/door-sensors
-cmnd/f2-{MAC}/access-control-mode/J1/strike-1
-cmnd/f2-{MAC}/access-control-mode/J1/exit-buttons
-cmnd/f2-{MAC}/access-control-mode/J1/reader-1
+stat/f2-{MAC}/access-control-mode/{CONNECTOR}/door-sensors
+stat/f2-{MAC}/access-control-mode/{CONNECTOR}/strike-{N}
+stat/f2-{MAC}/access-control-mode/{CONNECTOR}/exit-buttons
+tele/f2-{MAC}/access-control-mode/{CONNECTOR}/reader-{N}
 ```
 
 ### Alarm Mode
@@ -71,21 +73,19 @@ cmnd/f2-{MAC}/access-control-mode/J1/reader-1
 - Motion Sensors
 - Sirens
 
-**Topics**:
+**Example Topics**:
 ```
-cmnd/f2-{MAC}/alarm-mode/J1/motion-sensor-1
-cmnd/f2-{MAC}/alarm-mode/J1/siren-1
+stat/f2-{MAC}/alarm-mode/{CONNECTOR}/motion-sensor-{N}
+stat/f2-{MAC}/alarm-mode/{CONNECTOR}/siren-{N}
 ```
 
 ### Sensor Mode
 **Components**:
 - RS-485 Sensors (Temperature, Humidity, Pressure)
 
-**Topics**:
+**Example Topics**:
 ```
-cmnd/f2-{MAC}/sensor-mode/J1/sensor-1
-cmnd/f2-{MAC}/sensor-mode/J1/sensor-2
-cmnd/f2-{MAC}/sensor-mode/J1/sensor-3
+cmnd/f2-{MAC}/sensor-mode/{CONNECTOR}/sensor-{N}
 ```
 
 ## Data Generation

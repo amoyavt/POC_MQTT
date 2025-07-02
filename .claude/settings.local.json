@@ -6,7 +6,11 @@
       "Bash(curl:*)",
       "Bash(docker logs:*)",
       "Bash(docker-compose:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(openssl genrsa:*)",
+      "Bash(openssl req:*)",
+      "Bash(openssl x509:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }
