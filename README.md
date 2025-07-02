@@ -82,10 +82,6 @@ graph TB
     K -.->|Health Checks| I
     I --> J
     
-    classDef security fill:#ffcccc
-    classDef performance fill:#ccffcc
-    classDef standard fill:#ccccff
-    
     class A,B,E,G,H security
     class C,D,F,R performance
     class I,J,K standard
