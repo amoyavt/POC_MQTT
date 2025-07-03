@@ -23,7 +23,7 @@ This system ingests, processes, and stores IoT data from F2 Smart Controller dev
 ```mermaid
 graph TB
     subgraph "IoT Devices"
-        A[F2 Smart Controllers<br/>🔐 MQTT Auth Required]
+        A[F2 Smart Controllers<br/>🔐 mTLS MQTT Auth Required]
     end
     
     subgraph "Message Ingestion"

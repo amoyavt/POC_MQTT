@@ -1,30 +1,28 @@
 services:
   # MQTT Broker with mTLS Security
-  services:
-    certgen-api:
-      build: ./certgen
-      ports:
-        - "8080:8080"
-      volumes:
-        - ./certgen/ca:/ca
-        - ./certgen/issued:/issued
-      environment:
-        - CA_KEY=/ca/ca.key
-        - CA_CERT=/ca/ca.crt
-        - OPENSSL_CNF=/ca/openssl.cnf
+  certgen-api:
+    build: ./services/certgen
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./ca:/ca
+      - ./issued:/issued
+    environment:
+      - CA_KEY=/ca/ca.key
+      - CA_CERT=/ca/ca.crt
+      - OPENSSL_CNF=/ca/openssl.cnf
 
-    mqtt-broker:
-      image: eclipse-mosquitto:2
-      depends_on:
-        - certgen-api
-      ports:
-        - "8883:8883"
-      volumes:
-        - ./services/mqtt-broker/config:/mosquitto/config
-        - ./services/mqtt-broker/data:/mosquitto/data
-        - ./services/mqtt-broker/log:/mosquitto/log
-        - ./ca:/mosquitto/certs:ro
-      restart: unless-stopped
+  mqtt-broker:
+    image: eclipse-mosquitto:2
+    depends_on:
+      - certgen-api
+    ports:
+      - "8883:8883"
+    volumes:
+      - ./services/mqtt_broker/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./services/mqtt_broker/acl:/mosquitto/config/acl
+      - ./ca:/mosquitto/certs:ro
+    restart: unless-stopped
   # mosquitto:
   #   image: eclipse-mosquitto:2.0
   #   container_name: mqtt-broker
