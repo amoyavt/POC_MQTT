@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements first for better layer caching
 COPY services/data_processor/requirements.txt /app/requirements.txt
-COPY shared/requirements.txt /app/shared_requirements.txt
+COPY services/shared/requirements.txt /app/shared_requirements.txt
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
@@ -24,7 +24,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # Copy application code
 COPY services/data_processor/ /app/
-COPY shared/ /app/shared/
+COPY services/shared/ /app/shared/
 
 # Create logs directory
 RUN mkdir -p /app/logs && chown -R iotuser:iotuser /app
