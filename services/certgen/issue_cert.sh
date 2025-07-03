@@ -1,9 +1,9 @@
+#!/bin/bash
 # This script handles the issuance of a client certificate for a given MAC address.
 # It's called by the FastAPI server when a request is made to the /issue endpoint.
 # The script automates the process of generating a private key, a CSR,
 # and signing the CSR with the root CA to create a client certificate.
 
-#!/bin/bash
 # The first argument to the script is the device's MAC address.
 MAC=$1
 # Define the output directory for the generated certificate files.

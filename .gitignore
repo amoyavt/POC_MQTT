@@ -122,6 +122,9 @@ ipython_config.py
 # Certificate Authority directory - contains generated certificates and keys
 ca/
 
+# Issued certificates directory
+issued/
+
 # Certificate files
 *.crt
 *.cert

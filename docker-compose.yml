@@ -2,6 +2,7 @@ services:
   # Certificate Generation Service
   certgen-api:
     build: ./services/certgen
+    container_name: certgen-api
     ports:
       - "8080:8080"
     volumes:
@@ -14,12 +15,15 @@ services:
       - BROKER_EXPIRY=3650 # Broker certificate validity in days
       - DEVICE_EXPIRY=365 # Device certificate validity in days
       - OPENSSL_CNF=/ca/openssl.cnf # Path to OpenSSL configuration file
+      - CA_KEY=/ca/ca.key # Path to CA private key
+      - CA_CERT=/ca/ca.crt # Path to CA certificate
     networks:
       - iot-network
 
   # MQTT Broker with mTLS Security
   mqtt-broker:
     image: eclipse-mosquitto:2
+    container_name: mqtt-broker
     depends_on:
       - certgen-api
     ports:

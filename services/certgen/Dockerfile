@@ -1,16 +1,22 @@
 FROM python:3-alpine
 
 WORKDIR /app
-COPY server.py .
-COPY issue_cert.sh /app/issue_cert.sh
-COPY openssl.cnf /app/openssl.cnf
-COPY entrypoint.sh /app/entrypoint.sh
 
+# Copy all files explicitly
+COPY server.py .
+COPY issue_cert.sh .
+COPY openssl.cnf .
+COPY entrypoint.sh .
+
+# Install required packages, fix line endings, set permissions
 RUN apk update && \
-    apk add --no-cache openssl && \
+    apk add --no-cache bash dos2unix openssl && \
     pip install uv && \
     uv pip install --system fastapi uvicorn && \
+    dos2unix /app/issue_cert.sh && \
+    dos2unix /app/entrypoint.sh && \
     chmod +x /app/issue_cert.sh /app/entrypoint.sh
 
 EXPOSE 8080
+
 CMD ["sh", "/app/entrypoint.sh"]
