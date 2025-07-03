@@ -1,0 +1,7 @@
+# Allow devices to publish/subscribe to their own topics
+pattern read cmnd/f2-%u/+/+/+
+pattern write stat/f2-%u/+/+/+
+pattern write tele/f2-%u/+/+/+
+
+# Shared topics
+pattern readwrite general/#

@@ -1,0 +1,62 @@
+# This is the OpenSSL configuration file for the Certificate Authority.
+# It defines the structure and policies of the CA.
+
+[ ca ]
+# Specifies the default CA section to use.
+default_ca = CA_default
+
+[ CA_default ]
+# Directory where the CA files are stored.
+dir               = /ca
+# Where to find certificates.
+certs             = $dir
+# Directory where new certificates will be stored.
+new_certs_dir     = $dir
+# The database index file, used to track issued certificates.
+database          = $dir/index.txt
+# File containing the next serial number to use for certificates.
+serial            = $dir/serial
+# The private key of the CA.
+private_key       = $dir/ca.key
+# The CA certificate.
+certificate       = $dir/ca.crt
+# Default number of days for a certificate to be valid.
+default_days      = 3650
+# Default message digest algorithm.
+default_md        = sha256
+# The policy to apply to certificate requests.
+policy            = policy_any
+# Extensions to add to user certificates.
+x509_extensions   = usr_cert
+
+[ policy_any ]
+# This policy allows the Common Name (CN) to be supplied in the request.
+commonName        = supplied
+
+[ req ]
+# Default settings for certificate requests.
+distinguished_name = req_distinguished_name
+x509_extensions = v3_ca
+# Do not prompt for certificate fields.
+prompt = no
+
+[ req_distinguished_name ]
+# The default Common Name for the CA certificate itself.
+CN = MyIoTCA
+
+[ v3_ca ]
+# Extensions for a CA certificate.
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always,issuer
+basicConstraints = CA:true
+
+[ usr_cert ]
+# Extensions for a client (user) certificate.
+# It specifies that this certificate cannot be used as a CA.
+basicConstraints = CA:FALSE
+# Defines how the key can be used (digital signature, key encipherment).
+keyUsage = digitalSignature, keyEncipherment
+# Defines the extended purposes for which the key can be used.
+# clientAuth is for authenticating clients to servers (mTLS).
+# serverAuth is for authenticating servers to clients.
+extendedKeyUsage = clientAuth, serverAuth
