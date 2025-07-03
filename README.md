@@ -18,17 +18,22 @@ This system ingests, processes, and stores IoT data from F2 Smart Controller dev
 - 🐛 **Developer Friendly**: Comprehensive logging, health checks, easy debugging
 - 📈 **Production Ready**: Monitoring, metrics, horizontal scaling support
 
+
+### Setup
+```bash
+docker-compose up -d
+```
+
 ## Secure Architecture with Performance Optimization
 
 ```mermaid
 graph TB
-    subgraph "IoT Devices"
-        A[F2 Smart Controllers<br/>🔐 mTLS MQTT Auth Required]
-    end
-    
-    subgraph "Message Ingestion"
-        B[MQTT Broker<br/>🔐 Port: 1883<br/>Auth Required]
+    subgraph "MQTT Network"
+        A[F2 Smart Controllers]
+        B[MQTT Broker]
         C[MQTT-Kafka Connector<br/>⚡ Optimized Batching]
+        CA_API[Certificate Generation API]
+
     end
     
     subgraph "Stream Processing"
@@ -42,8 +47,11 @@ graph TB
         R[Redis Cache<br/>⚡ Device Parameters]
         H[(TimescaleDB<br/>🔒 Internal Only<br/>Compression)]
     end
-    
-    A -->|🔐 Authenticated MQTT| B
+
+
+    CA_API -.-> A
+    CA_API -.-> B
+    A -->|🔐 mTLS Authenticated MQTT| B
     B --> C
     C -->|Raw IoT Data Topic| D
     D --> E
@@ -56,3 +64,7 @@ graph TB
     class A,B,E,G,H security
     class C,D,F,R performance
 ```
+
+### Certificate Authority CA
+
+### MQTT broker

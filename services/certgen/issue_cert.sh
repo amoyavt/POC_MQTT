@@ -23,4 +23,4 @@ openssl req -new -key "$KEY" -out "$CSR" -subj "/CN=$MAC"
 # The -batch flag allows the command to run non-interactively.
 # The -extensions usr_cert flag applies the extensions defined in the openssl.cnf file.
 openssl ca -batch -config "$OPENSSL_CNF" -keyfile "$CA_KEY" -cert "$CA_CERT" \
-  -in "$CSR" -out "$CRT" -extensions usr_cert
+  -in "$CSR" -out "$CRT" -extensions usr_cert -days "${DEVICE_EXPIRY:-365}"

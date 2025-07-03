@@ -11,7 +11,11 @@ class CertRequest(BaseModel):
 def sanitize_mac(mac: str) -> str:
     if not re.fullmatch(r'([0-9a-f]{2}:){5}[0-9a-f]{2}', mac.lower()):
         raise ValueError("Invalid MAC format")
-    return mac.lower().replace(":", "-")
+    return mac.lower().replace(":", "")
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok", "message": "Certificate Generation Service is running"}
 
 @app.post("/issue")
 def issue_cert(req: CertRequest):

@@ -12,13 +12,17 @@ if [ ! -f "$CA_DIR/ca.key" ]; then
     # Create the initial files required by OpenSSL for managing a CA.
     touch "$CA_DIR/index.txt"
     echo 1000 > "$CA_DIR/serial"
-    # Copy OpenSSL config to CA directory
-    cp /app/openssl.cnf "$CA_DIR/openssl.cnf"
+    # Copy OpenSSL config to CA directory and substitute environment variables
+    # Prepare OpenSSL configuration with substituted environment variables
+    sed \
+        -e "s/CN = MyIoTCA/CN = ${CA_CN:-MyIoTCA}/g" \
+        -e "s/default_days      = 3650/default_days      = ${DEVICE_EXPIRY:-365}/g" \
+        /app/openssl.cnf > "$CA_DIR/openssl.cnf"
     # Generate the CA's private key.
     openssl genrsa -out "$CA_DIR/ca.key" 4096
-    # Generate the self-signed root CA certificate, valid for 10 years.
+    # Generate the self-signed root CA certificate using environment variables.
     openssl req -x509 -new -nodes -key "$CA_DIR/ca.key" -sha256 \
-        -days 3650 -out "$CA_DIR/ca.crt" -config "$CA_DIR/openssl.cnf"
+        -days "${CA_EXPIRY:-3650}" -out "$CA_DIR/ca.crt" -config "$CA_DIR/openssl.cnf"
 else
     echo "[INFO] Using existing CA..."
 fi
@@ -29,12 +33,13 @@ if [ ! -f "$CA_DIR/server.crt" ]; then
     # Generate server private key
     openssl genrsa -out "$CA_DIR/server.key" 2048
     # Create certificate signing request
-    openssl req -new -key "$CA_DIR/server.key" -out "$CA_DIR/server.csr" -subj "/CN=mqtt-broker"
+    openssl req -new -key "$CA_DIR/server.key" -out "$CA_DIR/server.csr" -subj "/CN=${BROKER_CN:-mqtt-broker}"
     # Sign with CA to create server certificate
     cd "$CA_DIR"
     openssl ca -batch -config "openssl.cnf" \
         -keyfile "ca.key" -cert "ca.crt" \
-        -in "server.csr" -out "server.crt" -extensions usr_cert
+        -in "server.csr" -out "server.crt" -extensions usr_cert \
+        -days "${BROKER_EXPIRY:-3650}"
     # Clean up temporary CSR
     rm "server.csr"
     echo "[SUCCESS] MQTT broker certificate generated"
@@ -44,4 +49,5 @@ fi
 
 # Start the FastAPI application using uvicorn.
 # It listens on all network interfaces on port 8080.
+cd /app
 exec uvicorn server:app --host 0.0.0.0 --port 8080
