@@ -19,7 +19,7 @@ def issue_cert(req: CertRequest):
         safe_mac = sanitize_mac(req.mac)
         result = subprocess.run(["/app/issue_cert.sh", safe_mac], capture_output=True)
         if result.returncode != 0:
-            raise Exception(result.stderr.decode())
+            raise RuntimeError(result.stderr.decode())
         return {"message": f"Certificate issued for {req.mac}"}
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))

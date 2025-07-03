@@ -17,10 +17,9 @@ RUN apt-get update && apt-get install -y \
 COPY services/kafka_timescale_sink/requirements.txt /app/requirements.txt
 COPY services/shared/requirements.txt /app/shared_requirements.txt
 
-# Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir -r shared_requirements.txt
+# Install Python dependencies with uv
+RUN pip install uv && \
+    uv pip install --system --no-cache -r requirements.txt -r shared_requirements.txt
 
 # Copy application code
 COPY services/kafka_timescale_sink/ /app/
