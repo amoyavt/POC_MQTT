@@ -24,7 +24,7 @@ services:
 
   # MQTT Broker with mTLS Security
   mqtt-broker:
-    image: eclipse-mosquitto:2
+    build: ./services/mqtt_broker
     container_name: mqtt-broker
     depends_on:
       - certgen-api
