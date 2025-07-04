@@ -1,4 +1,4 @@
-FROM python:3-alpine
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
 
 WORKDIR /app
 
@@ -10,9 +10,10 @@ COPY services/certgen_api/entrypoint.sh .
 COPY services/shared ./shared
 
 # Install required packages, fix line endings, set permissions
-RUN apk update && \
-    apk add --no-cache bash dos2unix openssl && \
-    pip install uv && \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends bash dos2unix openssl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
     uv pip install --system fastapi uvicorn && \
     dos2unix /app/issue_cert.sh && \
     dos2unix /app/entrypoint.sh && \

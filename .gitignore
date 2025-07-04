@@ -125,6 +125,9 @@ ca/
 # Issued certificates directory
 issued/
 
+# Faces2 Controllers - specific directories and files
+services/faces2_controllers/certs
+
 # Certificate files
 *.crt
 *.cert

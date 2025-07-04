@@ -11,11 +11,11 @@ services:
       - ./ca:/ca
       - ./issued:/issued
     environment:
-      - CA_CN=IoT_CA # Common Name for the CA
-      - CA_EXPIRY=3650 # CA validity in days
-      - BROKER_CN=IoT_Broker # Common Name for the MQTT broker
-      - BROKER_EXPIRY=3650 # Broker certificate validity in days
-      - DEVICE_EXPIRY=365 # Device certificate validity in days
+      - CA_CN=${CA_CN} # Common Name for the CA
+      - CA_EXPIRY=${CA_EXPIRY} # CA validity in days
+      - BROKER_CN=${BROKER_CN} # Common Name for the MQTT broker
+      - BROKER_EXPIRY=${BROKER_EXPIRY} # Broker certificate validity in days
+      - DEVICE_EXPIRY=${DEVICE_EXPIRY} # Device certificate validity in days
       - OPENSSL_CNF=/ca/openssl.cnf # Path to OpenSSL configuration file
       - CA_KEY=/ca/ca.key # Path to CA private key
       - CA_CERT=/ca/ca.crt # Path to CA certificate
@@ -40,24 +40,26 @@ services:
       - iot-network
     restart: unless-stopped
 
-  # # F2 Device Simulator with mTLS
-  # f2-simulator:
-  #   build: ./services/f2_simulator
-  #   container_name: f2-simulator
-  #   depends_on:
-  #     - mosquitto
-  #   environment:
-  #     MQTT_BROKER: mosquitto:1883  # Use internal port for testing
-  #     MQTT_USERNAME: iot_user
-  #     MQTT_PASSWORD: f6yksL+gDk1iexPUnBZvgf3V
-  #     PUBLISH_INTERVAL: 5
-  #     DEVICE_COUNT: 2
-  #     CERTS_PATH: /app/mqtt-security/certs/devices
-  #   volumes:
-  #     - ./mqtt-security:/app/mqtt-security:ro  # Mount certificates
-  #   networks:
-  #     - iot-network
-  #   restart: unless-stopped
+  # FACES2 Device Simulator with mTLS
+  faces2-controllers:
+    build:
+      context: .
+      dockerfile: services/faces2_controllers/Dockerfile
+    container_name: faces2-controllers
+    depends_on:
+      - certgen-api
+      - mqtt-broker
+    environment:
+      - BROKER_CN=${BROKER_CN} # Broker certificate CN for SSL validation
+      - MQTT_BROKER_HOST=mqtt_broker # MQTT broker hostname
+      - CERTGEN_API_HOST=certgen-api # Certificate generation API hostname (fixed service name)
+      - PUBLISH_INTERVAL=5 # Sensor data publishing interval in seconds
+    volumes:
+      - ./services/faces2_controllers/certs:/app/certs
+    networks:
+      - iot-network
+    restart: unless-stopped
+
 
   # mosquitto:
   #   image: eclipse-mosquitto:2.0
