@@ -51,7 +51,7 @@ services:
       - mqtt-broker
     environment:
       - BROKER_CN=${BROKER_CN} # Broker certificate CN for SSL validation
-      - MQTT_BROKER_HOST=mqtt_broker # MQTT broker hostname
+      - MQTT_BROKER_HOST=mqtt-broker # MQTT broker hostname
       - CERTGEN_API_HOST=certgen-api # Certificate generation API hostname (fixed service name)
       - PUBLISH_INTERVAL=5 # Sensor data publishing interval in seconds
     volumes:
