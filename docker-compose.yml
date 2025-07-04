@@ -41,6 +41,17 @@ services:
       - iot-network
     restart: unless-stopped
 
+  # MQTTX Client for Monitoring
+  mqttx-client:
+    image: emqx/mqttx-web:latest
+    container_name: mqttx-client
+    ports:
+      - "80:80" # Expose MQTTX web interface
+    depends_on:
+      - mqtt-broker
+    networks:
+      - iot-network
+
   # FACES2 Device Simulator with mTLS
   faces2-controllers:
     build:
