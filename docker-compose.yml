@@ -3,7 +3,7 @@ services:
   certgen-api:
     build:
       context: .
-      dockerfile: services/certgen/Dockerfile
+      dockerfile: services/certgen_api/Dockerfile
     container_name: certgen-api
     ports:
       - "8080:8080"

@@ -3,10 +3,10 @@ FROM python:3-alpine
 WORKDIR /app
 
 # Copy all files explicitly
-COPY services/certgen/api.py .
-COPY services/certgen/issue_cert.sh .
-COPY services/certgen/openssl.cnf .
-COPY services/certgen/entrypoint.sh .
+COPY services/certgen_api/api.py .
+COPY services/certgen_api/issue_cert.sh .
+COPY services/certgen_api/openssl.cnf .
+COPY services/certgen_api/entrypoint.sh .
 COPY services/shared ./shared
 
 # Install required packages, fix line endings, set permissions
