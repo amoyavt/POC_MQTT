@@ -4,6 +4,10 @@ import re
 import json
 import os
 from datetime import datetime, timedelta
+import sys
+import os
+sys.path.append('/app')
+from shared.models import CertificateResponse, CertificateRequest
 
 app = FastAPI()
 
@@ -16,11 +20,10 @@ def sanitize_mac(mac: str) -> str:
 def health_check():
     return {"status": "ok", "message": "Certificate Generation Service is running"}
 
-@app.post("/issue")
-async def issue_cert(request: Request):
+@app.post("/issue", response_model=CertificateResponse)
+async def issue_cert(request: CertificateRequest) -> CertificateResponse:
     try:
-        data = await request.json()
-        mac = data['mac']
+        mac = request.mac
         safe_mac = sanitize_mac(mac)
         result = subprocess.run(
             ["/app/issue_cert.sh", safe_mac], capture_output=True, text=True
@@ -53,19 +56,15 @@ async def issue_cert(request: Request):
         device_expiry = int(os.getenv('DEVICE_EXPIRY', '365'))
         expires_at = (datetime.now() + timedelta(days=device_expiry)).isoformat() + "Z"
         
-        return {
-            "mac": mac,
-            "client_cert": client_cert,
-            "private_key": private_key,
-            "ca_cert": ca_cert,
-            "expires_at": expires_at
-        }
+        return CertificateResponse(
+            mac=mac,
+            client_cert=client_cert,
+            private_key=private_key,
+            ca_cert=ca_cert,
+            expires_at=expires_at
+        )
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid JSON payload")
-    except KeyError:
-        raise HTTPException(status_code=400, detail="Missing 'mac' field in JSON payload")
     except FileNotFoundError as fe:
         raise HTTPException(status_code=500, detail=str(fe))
     except Exception as e:

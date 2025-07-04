@@ -1,7 +1,9 @@
 services:
   # Certificate Generation Service
   certgen-api:
-    build: ./services/certgen
+    build:
+      context: .
+      dockerfile: services/certgen/Dockerfile
     container_name: certgen-api
     ports:
       - "8080:8080"

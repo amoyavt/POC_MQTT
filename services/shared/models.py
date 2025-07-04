@@ -121,3 +121,37 @@ class IotMeasurement(BaseModel):
         orm_mode = True
         # Allow population by field name or alias
         allow_population_by_field_name = True
+
+
+class CertificateResponse(BaseModel):
+    """
+    Response model for certificate issuance endpoint.
+    
+    This model structures the response from the certificate generation service,
+    providing all necessary certificate data for F2 controller provisioning.
+    
+    Attributes:
+        mac: MAC address of the device
+        client_cert: PEM-encoded client certificate
+        private_key: PEM-encoded private key
+        ca_cert: PEM-encoded CA certificate
+        expires_at: Certificate expiration timestamp in ISO format
+    """
+    mac: str = Field(..., description="MAC address of the device")
+    client_cert: str = Field(..., description="PEM-encoded client certificate")
+    private_key: str = Field(..., description="PEM-encoded private key")
+    ca_cert: str = Field(..., description="PEM-encoded CA certificate")
+    expires_at: str = Field(..., description="Certificate expiration timestamp in ISO format")
+
+
+class CertificateRequest(BaseModel):
+    """
+    Request model for certificate issuance endpoint.
+    
+    This model validates the request body for certificate generation,
+    ensuring proper MAC address format for F2 controller provisioning.
+    
+    Attributes:
+        mac: MAC address of the device requesting certificate
+    """
+    mac: str = Field(..., description="MAC address of the device requesting certificate")

@@ -50,4 +50,4 @@ fi
 # Start the FastAPI application using uvicorn.
 # It listens on all network interfaces on port 8080.
 cd /app
-exec uvicorn server:app --host 0.0.0.0 --port 8080
+exec uvicorn api:app --host 0.0.0.0 --port 8080
