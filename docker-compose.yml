@@ -10,6 +10,7 @@ services:
     volumes:
       - ./ca:/ca
       - ./issued:/issued
+      - ./services/certgen_api/logs:/app/logs
     environment:
       - CA_CN=${CA_CN} # Common Name for the CA
       - CA_EXPIRY=${CA_EXPIRY} # CA validity in days
@@ -196,31 +197,6 @@ services:
   #   networks:
   #     - iot-network
   #   restart: unless-stopped
-
-  # # F2 Device Simulator with mTLS
-  # f2-simulator:
-  #   build: ./services/f2_simulator
-  #   container_name: f2-simulator
-  #   depends_on:
-  #     - mosquitto
-  #   environment:
-  #     MQTT_BROKER: mosquitto:1883  # Use internal port for testing
-  #     MQTT_USERNAME: iot_user
-  #     MQTT_PASSWORD: f6yksL+gDk1iexPUnBZvgf3V
-  #     PUBLISH_INTERVAL: 5
-  #     DEVICE_COUNT: 2
-  #     CERTS_PATH: /app/mqtt-security/certs/devices
-  #   volumes:
-  #     - ./mqtt-security:/app/mqtt-security:ro  # Mount certificates
-  #   networks:
-  #     - iot-network
-  #   restart: unless-stopped
-
-volumes:
-  mosquitto_data:
-  mosquitto_logs:
-  postgres_data:
-  timescale_data:
 
 networks:
   iot-network:
