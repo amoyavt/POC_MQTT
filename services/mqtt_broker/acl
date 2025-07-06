@@ -1,4 +1,8 @@
-# Allow devices to publish/subscribe to their own topics
+
+
+# --- Device Rules ---
+# The 'pattern' keyword applies to any user that authenticates.
+# '%u' is replaced by the username (the device's MAC address in your setup).
 pattern read cmnd/f2-%u/+/+/+
 pattern write stat/f2-%u/+/+/+
 pattern write tele/f2-%u/+/+/+

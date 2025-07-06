@@ -42,15 +42,8 @@ services:
     restart: unless-stopped
 
   # MQTTX Client for Monitoring
-  mqttx-client:
-    image: emqx/mqttx-web:latest
-    container_name: mqttx-client
-    ports:
-      - "80:80" # Expose MQTTX web interface
-    depends_on:
-      - mqtt-broker
-    networks:
-      - iot-network
+  mqtt-logger:
+    
 
   # FACES2 Device Simulator with mTLS
   faces2-controllers:
@@ -71,25 +64,6 @@ services:
     networks:
       - iot-network
     restart: unless-stopped
-
-
-  # mosquitto:
-  #   image: eclipse-mosquitto:2.0
-  #   container_name: mqtt-broker
-  #   ports:
-  #     - "1883:1883"  # Insecure port for internal services
-  #     - "8883:8883"  # Secure mTLS port for F2 controllers
-  #     - "9001:9001"  # WebSocket port
-  #   volumes:
-  #     - ./mqtt-security/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
-  #     - ./mqtt-security/mosquitto/acl_file.conf:/mosquitto/config/acl_file.conf
-  #     - ./mqtt-security/mosquitto/passwd:/mosquitto/config/passwd
-  #     - ./mqtt-security/certs:/mosquitto/config/certs
-  #     - mosquitto_data:/mosquitto/data
-  #     - mosquitto_logs:/mosquitto/log
-  #   networks:
-  #     - iot-network
-  #   restart: unless-stopped
 
   # # Zookeeper for Kafka
   # zookeeper:
