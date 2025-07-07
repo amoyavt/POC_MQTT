@@ -25,24 +25,23 @@ services:
 
   # MQTT Broker with mTLS Security
   mqtt-broker:
-    build: ./services/mqtt_broker
+    build:
+      context: .
+      dockerfile: services/mqtt_broker/Dockerfile
     container_name: mqtt-broker
     depends_on:
       - certgen-api
     ports:
       - "8883:8883"
     volumes:
-      - ./services/mqtt_broker/mosquitto.conf:/mosquitto/config/mosquitto.conf # Main configuration file
-      - ./services/mqtt_broker/acl:/mosquitto/config/acl # Access Control List configuration
       - ./services/mqtt_broker/data:/mosquitto/data # Data directory for Mosquitto
       - ./services/mqtt_broker/log:/mosquitto/log # Log directory for Mosquitto
-      - ./ca:/mosquitto/certs # CA certificate for mTLS
     networks:
       - iot-network
     restart: unless-stopped
 
   # MQTTX Client for Monitoring
-  mqtt-logger:
+  # mqtt-logger:
     
 
   # FACES2 Device Simulator with mTLS

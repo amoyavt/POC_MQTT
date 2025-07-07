@@ -1,11 +1,19 @@
 FROM eclipse-mosquitto:2
 
-# Copy the entrypoint script and make it executable
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+# Copy certificates from ca/ directory
+COPY ca/ca.crt /mosquitto/certs/ca.crt
+COPY ca/server.crt /mosquitto/certs/server.crt
+COPY ca/server.key /mosquitto/certs/server.key
 
-# Set the entrypoint
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+# Copy configuration files
+COPY services/mqtt_broker/mosquitto.conf /mosquitto/config/mosquitto.conf
+COPY services/mqtt_broker/acl /mosquitto/config/acl
 
-# The original command from the base image, which will be executed by the entrypoint
+# Set correct permissions
+RUN chown -R mosquitto:mosquitto /mosquitto/certs /mosquitto/config && \
+    chmod 600 /mosquitto/certs/server.key && \
+    chmod 644 /mosquitto/certs/ca.crt /mosquitto/certs/server.crt && \
+    chmod 600 /mosquitto/config/acl
+
+# Use standard mosquitto command
 CMD ["/usr/sbin/mosquitto", "-c", "/mosquitto/config/mosquitto.conf"]
