@@ -18,10 +18,14 @@ This is a secure, production-ready IoT data pipeline that ingests sensor data fr
 1. **Certificate Generation Service** (`services/certgen_api/`): FastAPI service that generates X.509 certificates for devices and brokers using a CA infrastructure
 2. **MQTT Broker** (`services/mqtt_broker/`): Mosquitto broker configured with mTLS authentication and ACL-based authorization
 3. **FACES2 Controllers Simulator** (`services/faces2_controllers/`): Python simulator for F2 Smart Controller devices that publish sensor data
-4. **MQTT-Kafka Connector**: Bridges MQTT messages to Kafka topics for stream processing
-5. **Stream Processing**: Apache Kafka handles real-time data processing with optimized batching
-6. **Data Storage**: TimescaleDB provides high-performance time-series data storage with PostgreSQL compatibility
-7. **Shared Models** (`services/shared/`): Pydantic models for data validation and transformation across services
+4. **MQTT-Kafka Connector** (`services/mqtt_kafka_connector/`): Bridges MQTT messages to Kafka topics for stream processing
+5. **Apache Kafka + Zookeeper**: Stream processing with topics for raw and processed IoT data
+6. **Stream Processor** (`services/stream_processor/`): Real-time data transformation with MAC→device_id mapping
+7. **PostgreSQL Database**: Metadata storage for device and datapoint mappings
+8. **Redis Cache**: High-speed caching for processor lookups
+9. **TimescaleDB**: Time-series data storage with optimized decoded_data table
+10. **Kafka-TimescaleDB Sink** (`services/kafka_timescale_sink/`): Batch processing from Kafka to TimescaleDB
+11. **Shared Models** (`services/shared/`): Pydantic models for data validation and transformation across services
 
 ### Network Architecture
 
@@ -36,9 +40,11 @@ All services communicate through the `iot-network` Docker bridge network.
 1. F2 Smart Controllers request certificates from certgen-api during startup
 2. Controllers connect to MQTT broker using mTLS authentication
 3. Messages are published to topic structure: `<TOPIC_TYPE>/f2-<MAC_ADDR>/<MODE>/<CONNECTOR>/<COMPONENT>`
-4. MQTT-Kafka connector streams messages to Kafka topics
-5. Stream processing services consume from Kafka for real-time data transformation
-6. Processed data is batched and stored in TimescaleDB for analytics
+4. MQTT-Kafka connector streams messages to `raw-iot-data` Kafka topic
+5. Stream processor consumes raw data, performs MAC→device_id mapping, and produces to `processed-iot-data` topic
+6. Kafka-TimescaleDB sink consumes processed data and batch inserts to TimescaleDB `decoded_data` table
+7. PostgreSQL stores metadata for device and datapoint mappings
+8. Redis provides high-speed caching for lookup operations
 
 **Architecture Reference**: See the Mermaid diagram in README.md for a visual representation of the complete data pipeline.
 
@@ -83,6 +89,28 @@ All environment variables from `.env`:
 - `CERTGEN_API_HOST`: Certificate generation API hostname (certgen-api)
 - `PUBLISH_INTERVAL`: Sensor data publishing interval in seconds (default: 5)
 
+### Database Configuration
+- `POSTGRES_USER`: PostgreSQL username (default: postgres)
+- `POSTGRES_PASSWORD`: PostgreSQL password (default: password)
+- `POSTGRES_DB`: PostgreSQL database name (default: db)
+- `POSTGRES_HOST`: PostgreSQL hostname (default: postgresql)
+- `TIMESCALE_USER`: TimescaleDB username (default: timescale)
+- `TIMESCALE_PASSWORD`: TimescaleDB password (default: password)
+- `TIMESCALE_DB`: TimescaleDB database name (default: timeseries)
+- `TIMESCALE_HOST`: TimescaleDB hostname (default: timescaledb)
+- `REDIS_HOST`: Redis hostname (default: redis)
+- `REDIS_PORT`: Redis port (default: 6379)
+
+### Kafka Configuration
+- `KAFKA_BOOTSTRAP_SERVERS`: Kafka bootstrap servers (default: kafka:9092)
+- `KAFKA_RAW_TOPIC`: Raw IoT data topic (default: raw-iot-data)
+- `KAFKA_PROCESSED_TOPIC`: Processed IoT data topic (default: processed-iot-data)
+
+### Processing Configuration
+- `BATCH_SIZE`: Batch size for processing (default: 1000)
+- `PROCESSING_INTERVAL`: Processing interval in seconds (default: 5)
+- `FLUSH_INTERVAL`: Flush interval for batching (default: 10)
+
 ## Development Notes
 
 ### Adding New Services
@@ -93,6 +121,13 @@ When adding services that need MQTT connectivity:
 3. Add appropriate ACL rules in `services/mqtt_broker/acl`
 4. Use shared models from `services/shared/models.py` for data validation
 5. Connect to `iot-network` bridge network for internal communication
+
+When adding services that need data processing:
+1. Use DecodedData model for TimescaleDB operations
+2. Use DeviceLookup and DataPointLookup models for metadata operations
+3. Implement Redis caching for performance optimization
+4. Follow batch processing patterns for high throughput
+5. Use PostgreSQL for metadata storage and TimescaleDB for time-series data
 
 ### MQTT Topic Structure
 
@@ -113,8 +148,25 @@ Follow the established pattern: `<TOPIC_TYPE>/f2-<MAC_ADDR>/<MODE>/<CONNECTOR>/<
 
 Key models in `services/shared/models.py`:
 
-1. **IotMeasurement**: Handles sensor data with timestamp conversion, value extraction from hex strings, field aliasing, and validation
-2. **CertificateRequest**: Validates certificate issuance requests with MAC address validation  
-3. **CertificateResponse**: Structures certificate response with client cert, private key, CA cert, and expiration
+1. **DecodedData**: Optimized TimescaleDB storage model with 4 columns (timestamp, device_id, datapoint_id, value)
+2. **DeviceLookup**: MAC address to device_id mapping for PostgreSQL metadata
+3. **DataPointLookup**: Sensor label to datapoint_id mapping for PostgreSQL metadata
+4. **CertificateRequest**: Validates certificate issuance requests with MAC address validation  
+5. **CertificateResponse**: Structures certificate response with client cert, private key, CA cert, and expiration
 
-The `IotMeasurement` model is central to data processing and should be extended when adding new sensor types or data formats.
+The `DecodedData` model uses integer IDs for space optimization in TimescaleDB storage. The lookup models enable efficient mapping from MAC addresses and sensor labels to integer IDs for better performance.
+
+### TimescaleDB Schema
+
+The `decoded_data` table structure (space-optimized):
+```sql
+CREATE TABLE decoded_data (
+    timestamp TIMESTAMPTZ NOT NULL,
+    device_id INTEGER NOT NULL,
+    datapoint_id INTEGER NOT NULL,
+    value DOUBLE PRECISION,
+    PRIMARY KEY (timestamp, device_id, datapoint_id)
+);
+```
+
+This schema uses integer IDs instead of string labels for significant space savings and improved query performance.

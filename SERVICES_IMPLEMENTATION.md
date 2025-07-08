@@ -34,65 +34,79 @@ This document provides a comprehensive analysis of the current services architec
    - **Purpose**: Data validation and transformation across services
    - **Network**: N/A (library)
    - **Security**: Data validation and sanitization
+   - **Enhancement**: Added `DecodedData`, `DeviceLookup`, and `DataPointLookup` models for optimized processing
 
 ### Services to Implement (Missing from Current Architecture)
 
-5. **MQTT-Kafka Connector** ❌
-   - **Status**: Not implemented
+5. **MQTT-Kafka Connector** ✅
+   - **Status**: Fully implemented and working
    - **Technology**: Python + Paho MQTT + Kafka Python client
    - **Purpose**: Bridge MQTT messages to Kafka topics
    - **Network**: MQTT subscriber (internal), Kafka producer
    - **Security**: No auth required (internal service)
+   - **Implementation**: Subscribes to `stat/+/+/+/+` and `tele/+/+/+/+` topics
+   - **Output**: Publishes to `raw-iot-data` Kafka topic with structured JSON format
+   - **Features**: Error handling, message statistics, graceful JSON/non-JSON payload handling
 
-6. **Apache Kafka** ❌
-   - **Status**: Not implemented
-   - **Technology**: Apache Kafka + Zookeeper
+6. **Apache Kafka** ✅
+   - **Status**: Fully implemented and working
+   - **Technology**: Apache Kafka + Zookeeper (Confluent Platform)
    - **Purpose**: Stream processing and message queuing
    - **Network**: Internal Kafka protocol (port 9092)
    - **Security**: No auth required (internal service)
+   - **Implementation**: Auto-creates topics, 3 partitions, optimized for performance
+   - **Topics**: `raw-iot-data` (input), `processed-iot-data` (output)
+   - **Features**: Data persistence, compression, reliability settings
 
-7. **Stream Processor** ❌
-   - **Status**: Not implemented
-   - **Technology**: Python + Kafka Python client
+7. **Stream Processor** ✅
+   - **Status**: Fully implemented and working
+   - **Technology**: Python + Kafka Python client + PostgreSQL + Redis
    - **Purpose**: Real-time data transformation and processing
    - **Network**: Kafka consumer/producer
    - **Security**: No auth required (internal service)
+   - **Implementation**: MAC→device_id mapping, sensor label→datapoint_id mapping
+   - **Features**: Redis caching, PostgreSQL metadata lookup, hex data parsing, batch processing
 
-8. **PostgreSQL Database** ❌
-   - **Status**: Not implemented
-   - **Technology**: PostgreSQL
+8. **PostgreSQL Database** ✅
+   - **Status**: Fully implemented and working
+   - **Technology**: PostgreSQL 15
    - **Purpose**: Metadata storage for processor configuration
    - **Network**: PostgreSQL protocol (port 5432)
    - **Security**: No auth required (internal service)
    - **Schema**: Uses `sql/init.sql` with configurable schema name via `SCHEMA_PARAMS`
    - **Authentication**: Environment variables for user/password
-   - **Database**: Configurable via `POSTGRES_DB` environment variable
+   - **Database**: Configurable via `POSTGRES_DB` environment variable (`iot_metadata`)
    - **Data**: Includes MAC addresses matching `faces2_controllers` simulator
+   - **Implementation**: Docker container with health checks and persistent storage
 
-9. **Redis Cache** ❌
-   - **Status**: Not implemented
-   - **Technology**: Redis
+9. **Redis Cache** ✅
+   - **Status**: Fully implemented and working
+   - **Technology**: Redis 7 Alpine
    - **Purpose**: High-speed caching for processor lookups
    - **Network**: Redis protocol (port 6379)
    - **Security**: No auth required (internal service)
+   - **Implementation**: Docker container with persistent data storage and health checks
 
-10. **TimescaleDB** ❌
-    - **Status**: Not implemented
-    - **Technology**: TimescaleDB (PostgreSQL extension)
+10. **TimescaleDB** ✅
+    - **Status**: Fully implemented and working
+    - **Technology**: TimescaleDB (PostgreSQL extension) on PostgreSQL 15
     - **Purpose**: Time-series data storage and analytics
-    - **Network**: PostgreSQL protocol (port 5432)
+    - **Network**: PostgreSQL protocol (port 5433)
     - **Security**: No auth required (internal service)
     - **Schema**: Uses `sql/timescale_init.sql` with optimized structure
-    - **Database**: Configurable via `TIMESCALE_DB` environment variable
+    - **Database**: Configurable via `TIMESCALE_DB` environment variable (`iot_timeseries`)
     - **Table**: `decoded_data` (renamed from `iot_measurements`)
     - **Structure**: Minimal columns for space optimization: `device_id`, `datapoint_id`, `value`, `timestamp`
+    - **Implementation**: Hypertable partitioning, optimized indexes, continuous aggregates, compression policies
 
-11. **Kafka-TimescaleDB Sink** ❌
-    - **Status**: Not implemented
-    - **Technology**: Python + Kafka + TimescaleDB
+11. **Kafka-TimescaleDB Sink** ✅
+    - **Status**: Fully implemented and working
+    - **Technology**: Python + Kafka + TimescaleDB + psycopg2
     - **Purpose**: Batch insert processed data into TimescaleDB
     - **Network**: Kafka consumer, TimescaleDB client
     - **Security**: No auth required (internal service)
+    - **Implementation**: Optimized bulk inserts, conflict resolution, batch processing
+    - **Features**: High-performance batch operations, connection pooling, error handling
 
 ## Implementation Plan
 
@@ -198,12 +212,12 @@ CREATE TABLE IF NOT EXISTS decoded_data (
 );
 ```
 
-### Shared Models (`services/shared/models.py`)
-**Model Update**: Update `IotMeasurement` to support new structure
-- Map MAC addresses to `device_id` integers
-- Map sensor labels to `datapoint_id` integers
-- Remove redundant fields for space optimization
-- Maintain backward compatibility during transition
+### Shared Models (`services/shared/models.py`) ✅ COMPLETED
+**Model Update**: Updated `IotMeasurement` to support new structure
+- Added `DecodedData` model for optimized TimescaleDB storage
+- Added `DeviceLookup` model for MAC address to device_id mapping
+- Added `DataPointLookup` model for sensor label to datapoint_id mapping
+- Maintained backward compatibility during transition
 
 ### Documentation (`docs/data-models.md`)
 **Updates Required**:
@@ -303,26 +317,25 @@ services:
       - TIMESCALE_DB=${TIMESCALE_DB}
 ```
 
-### Environment Variables
+### Environment Variables ✅ IMPLEMENTED
 
 ```bash
 # Database Configuration
 POSTGRES_USER=iot_user
 POSTGRES_PASSWORD=iot_password
 POSTGRES_DB=iot_metadata
+TIMESCALE_USER=iot_user
+TIMESCALE_PASSWORD=iot_password
 TIMESCALE_DB=iot_timeseries
-SCHEMA_PARAMS=iot_schema
 
 # Kafka Configuration
-KAFKA_BROKERS=kafka:9092
+KAFKA_BOOTSTRAP_SERVERS=kafka:9092
 KAFKA_RAW_TOPIC=raw-iot-data
 KAFKA_PROCESSED_TOPIC=processed-iot-data
 
-# Database Connections
+# Service Connections
 POSTGRES_HOST=postgresql
 TIMESCALE_HOST=timescaledb
-
-# Redis Configuration
 REDIS_HOST=redis
 REDIS_PORT=6379
 
@@ -346,22 +359,22 @@ PROCESSING_INTERVAL=5
 
 ## Implementation Priority
 
-### Immediate (Phase 1)
-1. Kafka + Zookeeper setup
-2. MQTT-Kafka connector implementation
-3. Basic data flow testing
+### Immediate (Phase 1) ✅ COMPLETED
+1. Kafka + Zookeeper setup ✅
+2. MQTT-Kafka connector implementation ✅
+3. Basic data flow testing (End-to-end at Phase 3 completion)
 
-### Short-term (Phase 2)
-1. PostgreSQL setup with updated `sql/init.sql`
-2. TimescaleDB setup with `decoded_data` table
-3. Redis setup
-4. Update shared models for new structure
+### Short-term (Phase 2) ✅ COMPLETED
+1. PostgreSQL setup with updated `sql/init.sql` ✅
+2. TimescaleDB setup with `decoded_data` table ✅
+3. Redis setup ✅
+4. Update shared models for new structure ✅
 
-### Medium-term (Phase 3)
-1. Stream processor with MAC→device_id mapping
-2. Kafka-TimescaleDB sink with space optimization
-3. Update documentation
-4. End-to-end testing
+### Medium-term (Phase 3) ✅ COMPLETED
+1. Stream processor with MAC→device_id mapping ✅
+2. Kafka-TimescaleDB sink with space optimization ✅
+3. Update documentation ✅
+4. **End-to-end testing of complete pipeline** ✅ (MQTT → Kafka → Processing → TimescaleDB)
 
 ## Testing Strategy
 

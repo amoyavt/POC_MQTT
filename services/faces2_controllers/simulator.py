@@ -27,7 +27,7 @@ class F2Controller:
             'private_key': f'/app/certs/{mac.replace(":", "")}.key',
             'ca_cert': f'/app/certs/ca.crt'
         }
-        self.connectors = [1, 2, 3, 4]  # 4 connectors per device
+        self.connectors = ["J1", "J2", "J3", "J4"]  # 4 connectors per device
         
     def provision_certificates(self):
         # Check if certificates exist
@@ -92,7 +92,8 @@ class F2Controller:
             logger.info(f"F2 Controller {self.mac} connected successfully")
             
             # Subscribe to command topics (matching ACL pattern)
-            command_topic = f"cmnd/f2-{self.mac}/+/+/+"
+            mac_no_colons = self.mac.replace(":", "").lower()
+            command_topic = f"cmnd/f2-{mac_no_colons}/+/+/+"
             client.subscribe(command_topic)
             logger.info(f"Subscribed to: {command_topic}")
         else:
@@ -112,7 +113,9 @@ class F2Controller:
         # Publish sensor data for each connector
         for connector in self.connectors:
             for sensor_num in [1, 2]:  # 2 sensors per connector
-                topic = f"stat/f2-{self.mac}/{self.mode}/{connector}/sensor-{sensor_num}"
+                # Use MAC address without colons for topic (as per official docs)
+                mac_no_colons = self.mac.replace(":", "").lower()
+                topic = f"tele/f2-{mac_no_colons}/{self.mode}/{connector}/sensor-{sensor_num}"
                 
                 # Generate realistic RS-485 hex data
                 hex_data = self.generate_hex_data()

@@ -63,6 +63,183 @@ services:
       - iot-network
     restart: unless-stopped
 
+  # Phase 1: Apache Kafka Infrastructure
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+    networks:
+      - iot-network
+    restart: unless-stopped
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - iot-network
+    restart: unless-stopped
+
+  # Phase 1: MQTT-Kafka Connector
+  mqtt-kafka-connector:
+    build:
+      context: .
+      dockerfile: services/mqtt_kafka_connector/Dockerfile
+    container_name: mqtt-kafka-connector
+    depends_on:
+      - mqtt-broker
+      - kafka
+    environment:
+      - MQTT_BROKER_HOST=mqtt-broker
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_RAW_TOPIC=raw-iot-data
+    networks:
+      - iot-network
+    restart: unless-stopped
+
+  # Phase 2: PostgreSQL Database (Metadata)
+  postgresql:
+    image: postgres:15
+    container_name: postgresql
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-iot_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-iot_password}
+      - POSTGRES_DB=${POSTGRES_DB:-iot_metadata}
+    volumes:
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgresql_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - iot-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-iot_user} -d ${POSTGRES_DB:-iot_metadata}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Phase 2: Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - iot-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Phase 2: TimescaleDB (Time-series Storage)
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: timescaledb
+    environment:
+      - POSTGRES_USER=${TIMESCALE_USER:-iot_user}
+      - POSTGRES_PASSWORD=${TIMESCALE_PASSWORD:-iot_password}
+      - POSTGRES_DB=${TIMESCALE_DB:-iot_timeseries}
+    volumes:
+      - ./sql/timescale_init.sql:/docker-entrypoint-initdb.d/init.sql
+      - timescaledb_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    networks:
+      - iot-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TIMESCALE_USER:-iot_user} -d ${TIMESCALE_DB:-iot_timeseries}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Phase 3: Stream Processor
+  stream-processor:
+    build:
+      context: .
+      dockerfile: services/stream_processor/Dockerfile
+    container_name: stream-processor
+    depends_on:
+      kafka:
+        condition: service_started
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_RAW_TOPIC=raw-iot-data
+      - KAFKA_PROCESSED_TOPIC=processed-iot-data
+      - POSTGRES_HOST=postgresql
+      - POSTGRES_USER=${POSTGRES_USER:-iot_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-iot_password}
+      - POSTGRES_DB=${POSTGRES_DB:-iot_metadata}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - BATCH_SIZE=${BATCH_SIZE:-100}
+      - PROCESSING_INTERVAL=${PROCESSING_INTERVAL:-5}
+    networks:
+      - iot-network
+    restart: unless-stopped
+
+  # Phase 3: Kafka-TimescaleDB Sink
+  kafka-timescale-sink:
+    build:
+      context: .
+      dockerfile: services/kafka_timescale_sink/Dockerfile
+    container_name: kafka-timescale-sink
+    depends_on:
+      kafka:
+        condition: service_started
+      timescaledb:
+        condition: service_healthy
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_PROCESSED_TOPIC=processed-iot-data
+      - TIMESCALE_HOST=timescaledb
+      - TIMESCALE_USER=${TIMESCALE_USER:-iot_user}
+      - TIMESCALE_PASSWORD=${TIMESCALE_PASSWORD:-iot_password}
+      - TIMESCALE_DB=${TIMESCALE_DB:-iot_timeseries}
+      - TIMESCALE_PORT=5432
+      - BATCH_SIZE=${BATCH_SIZE:-1000}
+      - FLUSH_INTERVAL=10
+    networks:
+      - iot-network
+    restart: unless-stopped
+
+volumes:
+  zookeeper_data:
+    driver: local
+  kafka_data:
+    driver: local
+  postgresql_data:
+    driver: local
+  redis_data:
+    driver: local
+  timescaledb_data:
+    driver: local
+
 networks:
   iot-network:
     driver: bridge
