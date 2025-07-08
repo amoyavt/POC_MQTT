@@ -23,7 +23,7 @@ from kafka.errors import KafkaError
 
 # Import shared models
 sys.path.append('/app')
-from shared.models import IotMeasurement, DecodedData, DeviceLookup, DataPointLookup
+from shared.models import DecodedData, DeviceLookup, DataPointLookup
 
 # Configure logging
 logging.basicConfig(
@@ -107,7 +107,7 @@ class StreamProcessor:
                 # Performance settings
                 batch_size=16384,
                 linger_ms=10,
-                compression_type='snappy',
+                compression_type='gzip',
                 # Reliability settings
                 acks='all',
                 retries=3

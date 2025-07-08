@@ -185,3 +185,58 @@ CREATE TABLE decoded_data (
 - **Test Pipeline**: End-to-end testing script (`test_pipeline.py`)
 - **MAC Address Consistency**: Simulator uses same MACs as metadata
 - **Easy Debugging**: Comprehensive logging and error handling
+
+## Troubleshooting
+
+### Kafka Cluster ID Mismatch
+
+**Problem**: Services fail to start with error:
+```
+kafka.common.InconsistentClusterIdException: The Cluster ID X doesn't match stored clusterId Some(Y)
+```
+
+**Cause**: Kafka and Zookeeper metadata are out of sync, usually due to volume corruption or incomplete shutdowns.
+
+**Solution**: Clean Kafka data and restart:
+
+```bash
+#!/bin/bash
+# kafka-reset.sh - Reset Kafka cluster when cluster ID mismatch occurs
+echo "Resetting Kafka cluster..."
+docker-compose down kafka zookeeper
+docker volume rm mqtt_architecture_poc_kafka_data mqtt_architecture_poc_zookeeper_data
+docker-compose up -d zookeeper kafka
+echo "Kafka cluster reset complete"
+```
+
+**Prevention**:
+- Always stop Kafka and Zookeeper together: `docker-compose down kafka zookeeper`
+- Use `docker-compose down` and `docker-compose up -d` for clean restarts
+- Don't manually delete volumes unless necessary
+
+### Service Dependencies
+
+**Problem**: Services fail with `NoBrokersAvailable` errors.
+
+**Solution**: Ensure proper startup order:
+```bash
+# Start infrastructure first
+docker-compose up -d zookeeper kafka postgresql redis timescaledb
+
+# Wait for services to be ready
+sleep 30
+
+# Start processing services
+docker-compose up -d stream-processor kafka-timescale-sink mqtt-kafka-connector
+```
+
+### MAC Address Lookup Errors
+
+**Problem**: Stream processor shows "Could not find device ID for MAC" warnings.
+
+**Solution**: Verify database contains correct MAC addresses:
+```bash
+docker exec postgresql psql -U postgres -d db -c "SELECT \"MacAddress\" FROM \"Device\";"
+```
+
+Should show: `aabbccddee01`, `aabbccddee02`, etc. (without `f2-` prefix)

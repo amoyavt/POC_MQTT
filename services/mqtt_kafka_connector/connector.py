@@ -36,9 +36,9 @@ class MqttKafkaConnector:
     """
     
     def __init__(self):
-        # MQTT Configuration
+        # MQTT Configuration  
         self.mqtt_broker_host = os.getenv('MQTT_BROKER_HOST', 'mqtt-broker')
-        self.mqtt_broker_port = int(os.getenv('MQTT_BROKER_PORT', '1883'))
+        self.mqtt_broker_port = int(os.getenv('MQTT_BROKER_PORT', '1883'))  # Use unencrypted port for internal services
         
         # Kafka Configuration
         self.kafka_bootstrap_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092')
@@ -81,7 +81,7 @@ class MqttKafkaConnector:
                 # Performance settings
                 batch_size=16384,
                 linger_ms=10,
-                compression_type='snappy',
+                compression_type='gzip',  # Changed from snappy to gzip (available by default)
                 # Reliability settings
                 acks='all',
                 retries=3,

@@ -104,17 +104,13 @@ class KafkaTimescaleSink:
                 database=self.timescale_db,
                 port=self.timescale_port,
                 # Connection optimizations
-                connect_timeout=10,
-                # Disable autocommit for batch operations
-                autocommit=False
+                connect_timeout=10
             )
             
             # Set optimized connection parameters
             with self.timescale_conn.cursor() as cursor:
-                # Optimize for batch inserts
+                # Optimize for batch inserts (only session-level parameters)
                 cursor.execute("SET synchronous_commit = OFF")
-                cursor.execute("SET wal_buffers = '16MB'")
-                cursor.execute("SET checkpoint_completion_target = 0.9")
                 
             self.timescale_conn.commit()
             logger.info(f"TimescaleDB connected to {self.timescale_host}:{self.timescale_db}")

@@ -93,11 +93,12 @@ INSERT INTO "DeviceTemplate" ("Name", "Model", "Description", "DeviceTypeId") VA
 ('Power Monitor', 'PM-100', 'Power Monitoring Unit for Voltage and Current', 3);
 
 -- Devices (Controllers and Sensors)
--- Controllers
+-- Controllers (MAC addresses without f2- prefix for database storage)
 INSERT INTO "Device" ("DeviceName", "DeviceTemplateId", "ClaimingCode", "MacAddress") VALUES 
-('F2 Controller 1', 1, 'claim-abc', 'e4fd45f654be'),
-('F2 Controller 2', 1, 'claim-def', 'abc123def456'),
-('F2 Controller 3', 1, 'claim-ghi', '123456abcdef');
+('F2 Controller 1', 1, 'claim-abc', 'aabbccddee01'),
+('F2 Controller 2', 1, 'claim-def', 'aabbccddee02'),
+('F2 Controller 3', 1, 'claim-ghi', 'aabbccddee03'),
+('F2 Controller 4', 1, 'claim-jkl', 'aabbccddee04');
 
 -- Sensors
 INSERT INTO "Device" ("DeviceName", "DeviceTemplateId", "ClaimingCode") VALUES 
@@ -105,20 +106,37 @@ INSERT INTO "Device" ("DeviceName", "DeviceTemplateId", "ClaimingCode") VALUES
 ('Kitchen Power Monitor', 3, 'claim-pm1'),
 ('Bedroom Env Sensor', 2, 'claim-env2');
 
--- Connectors for the Controllers
+-- Connectors for the Controllers (J1-J4 for each controller)
 INSERT INTO "Connector" ("ControllerId", "ConnectorNumber") VALUES 
-((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'e4fd45f654be'), 1),
-((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'abc123def456'), 2),
-((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = '123456abcdef'), 4);
+-- Controller 1 connectors
+((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee01'), 1),
+((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee01'), 2),
+((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee01'), 3),
+((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee01'), 4),
+-- Controller 2 connectors
+((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee02'), 1),
+((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee02'), 2),
+((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee02'), 3),
+((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee02'), 4),
+-- Controller 3 connectors
+((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee03'), 1),
+((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee03'), 2),
+((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee03'), 3),
+((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee03'), 4),
+-- Controller 4 connectors
+((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee04'), 1),
+((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee04'), 2),
+((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee04'), 3),
+((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee04'), 4);
 
 -- Pins: mapping sensors to controller connectors
 INSERT INTO "Pin" ("ConnectorId", "Position", "DeviceId") VALUES 
 -- Controller 1, Connector 1, Pin 1 -> Living Room Env Sensor
-((SELECT "ConnectorId" FROM "Connector" WHERE "ControllerId" = (SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'e4fd45f654be') AND "ConnectorNumber" = 1), 1, (SELECT "DeviceId" FROM "Device" WHERE "DeviceName" = 'Living Room Env Sensor')),
+((SELECT "ConnectorId" FROM "Connector" WHERE "ControllerId" = (SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee01') AND "ConnectorNumber" = 1), 1, (SELECT "DeviceId" FROM "Device" WHERE "DeviceName" = 'Living Room Env Sensor')),
 -- Controller 2, Connector 2, Pin 2 -> Kitchen Power Monitor
-((SELECT "ConnectorId" FROM "Connector" WHERE "ControllerId" = (SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'abc123def456') AND "ConnectorNumber" = 2), 2, (SELECT "DeviceId" FROM "Device" WHERE "DeviceName" = 'Kitchen Power Monitor')),
+((SELECT "ConnectorId" FROM "Connector" WHERE "ControllerId" = (SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee02') AND "ConnectorNumber" = 2), 2, (SELECT "DeviceId" FROM "Device" WHERE "DeviceName" = 'Kitchen Power Monitor')),
 -- Controller 3, Connector 4, Pin 3 -> Bedroom Env Sensor
-((SELECT "ConnectorId" FROM "Connector" WHERE "ControllerId" = (SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = '123456abcdef') AND "ConnectorNumber" = 4), 3, (SELECT "DeviceId" FROM "Device" WHERE "DeviceName" = 'Bedroom Env Sensor'));
+((SELECT "ConnectorId" FROM "Connector" WHERE "ControllerId" = (SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee03') AND "ConnectorNumber" = 4), 3, (SELECT "DeviceId" FROM "Device" WHERE "DeviceName" = 'Bedroom Env Sensor'));
 
 -- Data Points for the Sensor Templates
 -- Environmental Sensor
