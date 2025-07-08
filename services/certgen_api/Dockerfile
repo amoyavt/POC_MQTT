@@ -14,7 +14,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends bash dos2unix openssl && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
-    uv pip install --system fastapi uvicorn && \
+    uv pip install --system fastapi uvicorn cryptography && \
     dos2unix /app/issue_cert.sh && \
     dos2unix /app/entrypoint.sh && \
     chmod +x /app/issue_cert.sh /app/entrypoint.sh
