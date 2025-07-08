@@ -29,42 +29,31 @@ docker-compose up -d
 ```mermaid
 graph TB
     subgraph "MQTT Network"
-        A[F2 Smart Controllers]
-        B[MQTT Broker]
-        C[MQTT-Kafka Connector<br/>⚡ Optimized Batching]
         CA_API[Certificate Generation API]
-
+        FACES2[FACES2 Smart Controllers]
+        MQTT_BROKER[MQTT Broker]
+        KAFKA_CONNECTOR[MQTT-Kafka Connector]
     end
     
     subgraph "Stream Processing"
-        D[Apache Kafka<br/>⚡ Port: 9092<br/>Enhanced Config]
-        E[Data Processor<br/>🗄️ Redis Cache<br/>🔒 Input Validation]
-        F[Kafka-TimescaleDB Sink<br/>⚡ 10x Larger Batches]
+        KAFKA[Apache Kafka]
+        PROCESSOR[Processor]
+        TIMESCALEDB_SINK[Kafka-TimescaleDB Sink<br/> 10x Larger Batches]
     end
     
     subgraph "Data Storage"
-        G[(PostgreSQL<br/>🔒 Internal Only<br/>Connection Pool)]
-        R[Redis Cache<br/>⚡ Device Parameters]
-        H[(TimescaleDB<br/>🔒 Internal Only<br/>Compression)]
+        PostgreSQL[PostgreSQL]
+        REDIS[Redis Cache]
+        TIMESCALEDB[TimescaleDB]
     end
 
-
-    CA_API -.-> A
-    CA_API -.-> B
-    A -->|🔐 mTLS Authenticated MQTT| B
-    B --> C
-    C -->|Raw IoT Data Topic| D
-    D --> E
-    E <-->|⚡ Cached Lookups| R
-    E -->|🔒 Secure Queries| G
-    E -->|Decoded Data Topic| D
-    D --> F
-    F -->|⚡ Batch Insert| H
+    FACES2 -->|🔐 mTLS Authenticated MQTT| MQTT_BROKER
+    MQTT_BROKER --> KAFKA_CONNECTOR    
+    KAFKA_CONNECTOR -->|Raw IoT Data Topic| KAFKA
+    KAFKA --> |Raw Data|PROCESSOR
+    PROCESSOR --> |Processed Data| KAFKA
+    PROCESSOR -->|DataPoint params| PostgreSQL
+    PROCESSOR <-->|Cache Lookups| REDIS
+    KAFKA --> TIMESCALEDB_SINK --> |Batch Insert| TIMESCALEDB
     
-    class A,B,E,G,H security
-    class C,D,F,R performance
 ```
-
-### Certificate Authority CA
-
-### MQTT broker

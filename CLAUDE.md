@@ -4,14 +4,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Architecture
 
-This is a secure IoT data pipeline proof-of-concept that ingests sensor data from FACES2 controllers via MQTT, processes it through Kafka, and stores it in TimescaleDB. The architecture implements mTLS authentication for physical devices.
+This is a secure, production-ready IoT data pipeline that ingests sensor data from F2 Smart Controller devices, transforming raw MQTT messages into structured time-series data for analytics and monitoring. The system implements mTLS authentication, stream processing with Kafka, and high-performance data storage with TimescaleDB.
+
+**Key Features:**
+- 🔒 **Security First**: mTLS authentication, ACL-based authorization, non-root containers
+- ⚡ **High Performance**: Optimized batching, connection pooling, Redis caching
+- 📊 **Real-time Processing**: Stream processing with Kafka and TimescaleDB
+- 🐛 **Developer Friendly**: Comprehensive logging, health checks, easy debugging
+- 📈 **Production Ready**: Monitoring, metrics, horizontal scaling support
 
 ### Core Components
 
 1. **Certificate Generation Service** (`services/certgen_api/`): FastAPI service that generates X.509 certificates for devices and brokers using a CA infrastructure
 2. **MQTT Broker** (`services/mqtt_broker/`): Mosquitto broker configured with mTLS authentication and ACL-based authorization
-3. **FACES2 Controllers Simulator** (`services/faces2_controllers/`): Python simulator for FACES2 controllers that publish sensor data
-4. **Shared Models** (`services/shared/`): Pydantic models for data validation and transformation across services
+3. **FACES2 Controllers Simulator** (`services/faces2_controllers/`): Python simulator for F2 Smart Controller devices that publish sensor data
+4. **MQTT-Kafka Connector**: Bridges MQTT messages to Kafka topics for stream processing
+5. **Stream Processing**: Apache Kafka handles real-time data processing with optimized batching
+6. **Data Storage**: TimescaleDB provides high-performance time-series data storage with PostgreSQL compatibility
+7. **Shared Models** (`services/shared/`): Pydantic models for data validation and transformation across services
 
 ### Network Architecture
 
@@ -23,10 +33,14 @@ All services communicate through the `iot-network` Docker bridge network.
 
 ### Data Flow
 
-1. FACES2 controllers request certificates from certgen-api during startup
+1. F2 Smart Controllers request certificates from certgen-api during startup
 2. Controllers connect to MQTT broker using mTLS authentication
 3. Messages are published to topic structure: `<TOPIC_TYPE>/f2-<MAC_ADDR>/<MODE>/<CONNECTOR>/<COMPONENT>`
-4. Data processing services consume from MQTT topics for further processing
+4. MQTT-Kafka connector streams messages to Kafka topics
+5. Stream processing services consume from Kafka for real-time data transformation
+6. Processed data is batched and stored in TimescaleDB for analytics
+
+**Architecture Reference**: See the Mermaid diagram in README.md for a visual representation of the complete data pipeline.
 
 ## Common Commands
 
