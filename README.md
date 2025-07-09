@@ -81,7 +81,11 @@ This system ingests, processes, and stores IoT data from F2 Smart Controller dev
 
 ### Setup
 ```bash
-docker-compose up -d
+docker-compose up --build -d
+```
+
+```bash
+docker-compose down -v
 ```
 
 ## Data Flow Architecture
@@ -182,7 +186,6 @@ CREATE TABLE decoded_data (
 - **Logging**: Structured logging across all services
 
 ### Development and Testing
-- **Test Pipeline**: End-to-end testing script (`test_pipeline.py`)
 - **MAC Address Consistency**: Simulator uses same MACs as metadata
 - **Easy Debugging**: Comprehensive logging and error handling
 
@@ -197,7 +200,7 @@ kafka.common.InconsistentClusterIdException: The Cluster ID X doesn't match stor
 
 **Cause**: Kafka and Zookeeper metadata are out of sync, usually due to volume corruption or incomplete shutdowns.
 
-**Solution**: Clean Kafka data and restart:
+**Solution**: Clean Kafka data and restart
 
 ```bash
 #!/bin/bash
