@@ -121,16 +121,17 @@ class MqttKafkaConnector:
             topic_type = topic_parts[0]  # stat or tele
             device_mac = topic_parts[1]  # f2-MAC_ADDRESS
             mode = topic_parts[2]        # sensor-mode, etc.
-            connector_raw = topic_parts[3]   # connector identifier (J1, J2, J3, J4)
+            connector = topic_parts[3]   # connector identifier (J1, J2, J3, J4)
             component = topic_parts[4]   # sensor component
             
-            # Convert connector from J1/J2/J3/J4 format to numeric (1/2/3/4)
-            connector_mapping = {"J1": "1", "J2": "2", "J3": "3", "J4": "4"}
-            connector = connector_mapping.get(connector_raw, connector_raw)
-            
-            # Log connector conversion for debugging
-            if connector_raw in connector_mapping:
-                logger.debug(f"Converted connector {connector_raw} to {connector} for topic {msg.topic}")
+            # Only convert connector format for sensor telemetry topics
+            # Pattern: tele/f2-<MAC_ADDR>/sensor-mode/<CONNECTOR>/sensor-<N>
+            if (topic_type == 'tele' and 
+                mode == 'sensor-mode' and 
+                component.startswith('sensor-')):
+                # Keep original J1, J2, J3, J4 format for sensor topics
+                pass  # connector already has the correct format
+            # For other topics, keep whatever format they use
             
             # Decode message payload
             try:
@@ -152,8 +153,7 @@ class MqttKafkaConnector:
                 'topic_type': topic_type,
                 'device_mac': device_mac,
                 'mode': mode,
-                'connector': connector,  # Numeric format (1, 2, 3, 4)
-                'connector_raw': connector_raw,  # Original format (J1, J2, J3, J4)
+                'connector': connector,  # Original format (J1, J2, J3, J4)
                 'component': component,
                 'payload': payload_data,
                 'qos': msg.qos,

@@ -48,10 +48,11 @@ This system ingests, processes, and stores IoT data from F2 Smart Controller dev
    - Port: 9092 (internal Kafka protocol)
 
 6. **Stream Processor** (`services/stream_processor/`)
-   - Real-time data transformation
-   - MAC→device_id mapping using PostgreSQL
-   - Redis caching for performance
-   - Hex data parsing and sensor value extraction
+   - Real-time data transformation following production database architecture
+   - Complex controller→connector→pin→sensor→datapoint mapping process
+   - MAC→device_id mapping using PostgreSQL with Redis caching
+   - Production-grade sensor device resolution via Pin/Connector tables
+   - Hex data parsing with DataPoint metadata (offset, length, encoding)
 
 7. **PostgreSQL Database**
    - Metadata storage for device and datapoint mappings
@@ -144,13 +145,64 @@ CREATE TABLE decoded_data (
 
 ### Data Processing Pipeline
 
-1. **MQTT Messages**: F2 controllers publish to `stat/f2-<MAC>/sensor-mode/*/sensor-*`
+1. **MQTT Messages**: F2 controllers publish to `tele/f2-<MAC>/sensor-mode/<CONNECTOR>/sensor-<N>`
 2. **Kafka Topics**: 
    - `raw-iot-data`: Raw MQTT messages with hex data
    - `processed-iot-data`: Parsed sensor values with integer IDs
-3. **PostgreSQL Metadata**: MAC→device_id and sensor_label→datapoint_id mappings
-4. **Redis Cache**: High-speed lookup caching for performance
-5. **TimescaleDB Storage**: Optimized time-series data with hypertable partitioning
+3. **Stream Processing Architecture**: Complex production-grade data transformation
+4. **PostgreSQL Metadata**: Multi-table device/sensor/datapoint relationships
+5. **Redis Cache**: High-speed lookup caching for performance optimization
+6. **TimescaleDB Storage**: Optimized time-series data with hypertable partitioning
+
+### Stream Processor Complex Mapping Process
+
+The Stream Processor implements a sophisticated data transformation that follows the production database architecture:
+
+#### **Step 1: Controller Resolution**
+- Extract MAC address from MQTT topic: `f2-aabbccddee01`
+- Remove `f2-` prefix: `aabbccddee01`
+- Query `Device` table to get controller `DeviceId`
+
+#### **Step 2: Connector Mapping**
+- Extract connector from topic: `J1`, `J2`, `J3`, `J4`
+- Map to connector number: `J1→1`, `J2→2`, etc.
+- Query `Connector` table: `WHERE ControllerId = ? AND ConnectorNumber = ?`
+
+#### **Step 3: Pin and Sensor Resolution**  
+- Extract sensor number from component: `sensor-1` → position `1`
+- Query `Pin` table: `WHERE ConnectorId = ? AND Position = ?`
+- Get connected sensor `DeviceId` from Pin record
+
+#### **Step 4: DataPoint Mapping**
+- Get sensor's `DeviceTemplateId` from `Device` table
+- Query `DataPoint` table: `WHERE DeviceTemplateId = ?`
+- Select appropriate datapoint based on sensor position and type
+
+#### **Step 5: Data Attribution**
+- Attribute final data to **sensor device**, not controller
+- Use sensor's `DeviceId` and `DataPointId` for storage
+- Preserve controller metadata for debugging and traceability
+
+#### **Example Data Flow**
+```
+Topic: tele/f2-aabbccddee01/sensor-mode/J1/sensor-1
+↓
+Controller: aabbccddee01 → DeviceId: 1 (F2 Controller 1)
+↓  
+Connector: J1 → ConnectorNumber: 1 → ConnectorId: 1
+↓
+Pin: Position 1 → DeviceId: 5 (Living Room Env Sensor)
+↓
+DataPoint: DeviceTemplateId: 2 → DataPointId: 1 (Temperature)
+↓
+Final Record: device_id=5, datapoint_id=1, value=23.5°C
+```
+
+This architecture enables:
+- **Multi-sensor support**: Each controller connector supports multiple sensors
+- **Flexible device types**: Environmental sensors, power monitors, etc.
+- **Proper data attribution**: Data belongs to actual sensor devices
+- **Production scalability**: Supports complex industrial IoT hierarchies
 
 ## Security Architecture
 

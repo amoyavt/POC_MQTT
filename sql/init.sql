@@ -141,9 +141,9 @@ INSERT INTO "Pin" ("ConnectorId", "Position", "DeviceId") VALUES
 -- Data Points for the Sensor Templates
 -- Environmental Sensor
 INSERT INTO "DataPoint" ("DeviceTemplateId", "Label", "DataPointIconId", "DataFormat", "DataEncoding", "Offset", "Length", "Decimals", "Append") VALUES
-((SELECT "DeviceTemplateId" FROM "DeviceTemplate" WHERE "Name" = 'Environmental Sensor'), 'Temperature', 1, 'numeric', 'Int16', 0, 2, 2, ' °C'),
-((SELECT "DeviceTemplateId" FROM "DeviceTemplate" WHERE "Name" = 'Environmental Sensor'), 'Humidity', 2, 'numeric', 'Uint16', 2, 2, 2, ' %'),
-((SELECT "DeviceTemplateId" FROM "DeviceTemplate" WHERE "Name" = 'Environmental Sensor'), 'CO2', 6, 'numeric', 'Uint16', 4, 2, 0, ' ppm');
+((SELECT "DeviceTemplateId" FROM "DeviceTemplate" WHERE "Name" = 'Environmental Sensor'), 'Temperature', 1, 'numeric', 'Int16', 6, 2, 2, ' °C'),
+((SELECT "DeviceTemplateId" FROM "DeviceTemplate" WHERE "Name" = 'Environmental Sensor'), 'Humidity', 2, 'numeric', 'Uint16', 8, 2, 2, ' %'),
+((SELECT "DeviceTemplateId" FROM "DeviceTemplate" WHERE "Name" = 'Environmental Sensor'), 'CO2', 6, 'numeric', 'Uint16', 10, 2, 0, ' ppm');
 
 -- Power Monitor
 INSERT INTO "DataPoint" ("DeviceTemplateId", "Label", "DataPointIconId", "DataFormat", "DataEncoding", "Offset", "Length", "Decimals", "Append") VALUES
