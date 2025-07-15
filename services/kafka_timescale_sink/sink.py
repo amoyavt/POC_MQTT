@@ -172,8 +172,8 @@ class KafkaTimescaleSink:
                 for data in batch_data:
                     insert_data.append((
                         data.timestamp,
-                        data.device_id,
-                        data.datapoint_id,
+                        data.deviceid,
+                        data.datapointid,
                         data.value
                     ))
                 

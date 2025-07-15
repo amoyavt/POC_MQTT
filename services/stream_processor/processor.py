@@ -48,10 +48,11 @@ class StreamProcessor:
         self.kafka_processed_topic = os.getenv('KAFKA_PROCESSED_TOPIC', 'processed-iot-data')
         
         # PostgreSQL Configuration
-        self.postgres_host = os.getenv('POSTGRES_HOST', 'postgresql')
-        self.postgres_user = os.getenv('POSTGRES_USER', 'iot_user')
-        self.postgres_password = os.getenv('POSTGRES_PASSWORD', 'iot_password')
-        self.postgres_db = os.getenv('POSTGRES_DB', 'iot_metadata')
+        self.postgres_host = os.getenv('POSTGRES_HOST', 'localhost')
+        self.postgres_port = int(os.getenv('POSTGRES_PORT', '5432'))
+        self.postgres_user = os.getenv('POSTGRES_USER', 'postgres')
+        self.postgres_password = os.getenv('POSTGRES_PASSWORD', 'password')
+        self.postgres_db = os.getenv('POSTGRES_DB', 'db')
         self.device_schema = os.getenv('DEVICE_SCHEMA', 'VtDevice')
         
         # Redis Configuration
@@ -123,10 +124,10 @@ class StreamProcessor:
         try:
             self.postgres_conn = psycopg2.connect(
                 host=self.postgres_host,
+                port=self.postgres_port,
                 user=self.postgres_user,
                 password=self.postgres_password,
-                database=self.postgres_db,
-                port=5432
+                database=self.postgres_db
             )
             # Set search path to use the device schema
             with self.postgres_conn.cursor() as cursor:

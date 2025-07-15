@@ -56,8 +56,8 @@ This system ingests, processes, and stores IoT data from F2 Smart Controller dev
 
 7. **PostgreSQL Database**
    - Metadata storage for device and datapoint mappings
-   - Uses sql/init.sql for schema initialization
-   - Port: 5432
+   - Database at POSTGRES_HOST:POSTGRES_PORT
+   - Schema: VtDevice
 
 8. **Redis Cache**
    - High-speed caching for processor lookups
@@ -81,11 +81,18 @@ This system ingests, processes, and stores IoT data from F2 Smart Controller dev
     - Certificate request/response models
 
 ### Setup
+
+**Prerequisites:**
+- External PostgreSQL database running at the host/port specified in .env
+- Database should have the VtDevice schema with required tables
+
 ```bash
+# Start the IoT pipeline (connects to external PostgreSQL)
 docker-compose up --build -d
 ```
 
 ```bash
+# Stop services
 docker-compose down -v
 ```
 
@@ -289,9 +296,29 @@ docker-compose up -d stream-processor kafka-timescale-sink mqtt-kafka-connector
 
 **Problem**: Stream processor shows "Could not find device ID for MAC" warnings.
 
-**Solution**: Verify database contains correct MAC addresses:
+**Solution**: Verify external database contains correct MAC addresses:
 ```bash
-docker exec postgresql psql -U postgres -d db -c "SELECT macaddress FROM \"VtDevice\".devices;"
+# Connect to your external PostgreSQL database
+psql -h $POSTGRES_HOST$ -U postgres -d db -c "SELECT macaddress FROM \"VtDevice\".devices;"
 ```
 
 Should show: `aabbccddee01`, `aabbccddee02`, etc. (without `f2-` prefix)
+
+### External Database Connection Issues
+
+**Problem**: Stream processor fails to connect to external PostgreSQL.
+
+**Solution**: Verify connection details in .env file:
+```bash
+# Check if external database is accessible
+Test-NetConnection -ComputerName $env:POSTGRES_HOST -Port 5432
+
+
+# Test connection with psql
+psql -h $env:POSTGRES_HOST -p 5432 -U postgres -d db
+```
+
+Ensure:
+- External PostgreSQL allows connections from Docker containers
+- Firewall allows traffic on the PostgreSQL port
+- Credentials in .env match the external database
