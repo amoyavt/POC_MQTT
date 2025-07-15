@@ -5,80 +5,76 @@ The database contains devices that can function as controllers or as devices tha
 
 ```mermaid
 erDiagram
-    "DeviceType" {
-        INT DeviceTypeId PK
-        VARCHAR Name
+    "devicetypes" {
+        INT devicetypeid PK
+        VARCHAR name
     }
-    "DeviceTemplate" {
-        INT DeviceTemplateId PK
-        VARCHAR Name
-        VARCHAR Model
-        TEXT Description
-        BYTEA Image
-        INT DeviceTypeId FK
+    "devicetemplates" {
+        INT devicetemplateid PK
+        VARCHAR name
+        VARCHAR model
+        TEXT description
+        BYTEA image
+        INT devicetypeid FK
     }
-    "Device" {
-        INT DeviceId PK
-        VARCHAR DeviceName
-        INT DeviceTemplateId FK
-        VARCHAR ClaimingCode
-        VARCHAR SerialNumber
-        VARCHAR Uuid
-        VARCHAR MacAddress
-        VARCHAR IpAddress
-        VARCHAR PcbVersion
+    "devices" {
+        INT deviceid PK
+        VARCHAR devicename
+        INT devicetemplateid FK
+        VARCHAR claimingcode
+        VARCHAR serialnumber
+        VARCHAR uuid
+        VARCHAR macaddress
+        VARCHAR ipaddress
+        VARCHAR pcbversion
     }
-    "Connector" {
-        INT ConnectorId PK
-        INT ControllerId FK
-        INT ConnectorNumber
-        INT ConnectorTypeId
+    "connectors" {
+        INT connectorid PK
+        INT controllerid FK
+        INT connectornumber
+        INT connectortypeid
     }
-    "Pin" {
-        INT PinId PK
-        INT ConnectorId FK
-        INT Position
-        INT DeviceId FK
+    "pins" {
+        INT pinid PK
+        INT connectorid FK
+        INT position
+        INT deviceid FK
     }
-    "DataPointIcon" {
-        INT DataPointIconId PK
-        VARCHAR IconName
+    "datapointicons" {
+        INT datapointiconid PK
+        VARCHAR iconname
     }
-    "DataPoint" {
-        INT DataPointId PK
-        INT DeviceTemplateId FK
-        VARCHAR Label
-        INT DataPointIconId FK
-        VARCHAR DataFormat
-        VARCHAR DataEncoding
-        INT Offset
-        INT Length
-        VARCHAR Prepend
-        VARCHAR Append
-        INT WholeNumber
-        INT Decimals
-        VARCHAR RealTimeChart
-        VARCHAR HistoricalChart
+    "datapoints" {
+        INT datapointid PK
+        INT devicetemplateid FK
+        VARCHAR label
+        INT datapointiconid FK
+        VARCHAR dataformat
+        VARCHAR dataencoding
+        INT offset
+        INT length
+        VARCHAR prepend
+        VARCHAR append
+        INT wholenumber
+        INT decimals
+        VARCHAR realtimechart
+        VARCHAR historicalchart
     }
-    "iot_measurements" {
+    "decoded_data" {
         TIMESTAMPTZ timestamp PK
-        VARCHAR device_id PK
-        VARCHAR connector_mode PK
-        VARCHAR component_type PK
-        VARCHAR pin_position PK
+        INT deviceid PK
+        INT datapointid PK
         DOUBLE_PRECISION value
-        VARCHAR unit
-        VARCHAR topic
     }
 
-    "DeviceType" ||--o{ "DeviceTemplate" : "has"
-    "DeviceTemplate" ||--o{ "Device" : "has"
-    "DeviceTemplate" ||--o{ "DataPoint" : "has"
-    "Device" ||--o{ "Connector" : "has"
-    "Connector" ||--o{ "Pin" : "has"
-    "Device" ||--|{ "Pin" : "is"
-    "DataPointIcon" ||--o{ "DataPoint" : "has"
-    "Device" ||--o{ "iot_measurements" : "generates"
+    "devicetypes" ||--o{ "devicetemplates" : "has"
+    "devicetemplates" ||--o{ "devices" : "has"
+    "devicetemplates" ||--o{ "datapoints" : "has"
+    "devices" ||--o{ "connectors" : "has"
+    "connectors" ||--o{ "pins" : "has"
+    "devices" ||--|{ "pins" : "is"
+    "datapointicons" ||--o{ "datapoints" : "has"
+    "devices" ||--o{ "decoded_data" : "generates"
 
 ```
 
@@ -87,16 +83,16 @@ erDiagram
 ```csharp
 public class Device
 {
-    public int DeviceId { get; set; }
-    public string DeviceName { get; set; } = null!;
-    public int DeviceTemplateId { get; set; }
+    public int deviceid { get; set; }
+    public string devicename { get; set; } = null!;
+    public int devicetemplateid { get; set; }
     public virtual DeviceTemplate DeviceTemplate { get; set; } = null!;
-    public string ClaimingCode { get; set; } = null!;
-    public string? SerialNumber { get; set; } = null!;
-    public string? Uuid { get; set; } = null!;
-    public string? MacAddress { get; set; } = null!;
-    public string? IpAddress { get; set; } = null!;
-    public string? PcbVersion { get; set; }
+    public string claimingcode { get; set; } = null!;
+    public string? serialnumber { get; set; } = null!;
+    public string? uuid { get; set; } = null!;
+    public string? macaddress { get; set; } = null!;
+    public string? ipaddress { get; set; } = null!;
+    public string? pcbversion { get; set; }
     public virtual IEnumerable<DeviceConnectivity> DeviceConnectivities { get; set; } = null!;
     public virtual DeviceClaim ClaimDevice { get; set; } = null!;
 }
@@ -107,12 +103,12 @@ public class Device
 ```csharp
 public class DeviceTemplate
 {
-    public int DeviceTemplateId { get; set; }
-    public string Name { get; set; } = null!;
-    public string Model { get; set; } = null!;
-    public string Description { get; set; } = null!;
-    public byte[]? Image { get; set; }
-    public int DeviceTypeId { get; set; }
+    public int devicetemplateid { get; set; }
+    public string name { get; set; } = null!;
+    public string model { get; set; } = null!;
+    public string description { get; set; } = null!;
+    public byte[]? image { get; set; }
+    public int devicetypeid { get; set; }
     public virtual DeviceType DeviceType { get; set; } = null!;
     public virtual IEnumerable<DeviceTemplateCommunication> Communications { get; set; } = null!;
     public virtual IEnumerable<DeviceTemplateAuthentication> Authentications { get; set; } = null!;
@@ -126,22 +122,22 @@ public class DeviceTemplate
 ```csharp
 public class DataPoint
 {
-    public int DataPointId { get; set; }
-    public int DeviceTemplateId { get; set; }
+    public int datapointid { get; set; }
+    public int devicetemplateid { get; set; }
     public virtual DeviceTemplate DeviceTemplate { get; set; } = null!;
-    public string Label { get; set; } = null!;
-    public int DataPointIconId { get; set; }
+    public string label { get; set; } = null!;
+    public int datapointiconid { get; set; }
     public virtual DataPointIcon DataPointIcon { get; set; } = null!;
-    public DeviceManagementConstants.DataFormat DataFormat { get; set; }
-    public DeviceManagementConstants.DataEncoding DataEncoding { get; set; }
-    public int Offset { get; set; }
-    public int Length { get; set; }
-    public string Prepend { get; set; } = string.Empty;
-    public string Append { get; set; } = string.Empty;
-    public int WholeNumber { get; set; } = 0;
-    public int Decimals { get; set; } = 0;
-    public DeviceManagementConstants.ChartType RealTimeChart { get; set; }
-    public DeviceManagementConstants.ChartType HistoricalChart { get; set; }
+    public DeviceManagementConstants.DataFormat dataformat { get; set; }
+    public DeviceManagementConstants.DataEncoding dataencoding { get; set; }
+    public int offset { get; set; }
+    public int length { get; set; }
+    public string prepend { get; set; } = string.Empty;
+    public string append { get; set; } = string.Empty;
+    public int wholenumber { get; set; } = 0;
+    public int decimals { get; set; } = 0;
+    public DeviceManagementConstants.ChartType realtimechart { get; set; }
+    public DeviceManagementConstants.ChartType historicalchart { get; set; }
 }
 ```
 
@@ -156,12 +152,12 @@ public class Connector
 {
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-    public int ConnectorId { get; set; }
-    public int ControllerId { get; set; }
+    public int connectorid { get; set; }
+    public int controllerid { get; set; }
     public virtual Device Controller { get; set; } = null!;
     [Range(1, 5)]
-    public int ConnectorNumber { get; set; }
-    public int ConnectorTypeId { get; set; }
+    public int connectornumber { get; set; }
+    public int connectortypeid { get; set; }
     public virtual ConnectorType ConnectorType { get; set; } = null!;
     public virtual IEnumerable<Pin> Pins { get; set; } = null!;
 }
@@ -174,11 +170,11 @@ public class Pin
 {
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-    public int PinId { get; set; }
-    public int ConnectorId { get; set; }
+    public int pinid { get; set; }
+    public int connectorid { get; set; }
     public virtual Connector Connector { get; set; } = null!;
-    public int Position { get; set; }
-    public int DeviceId { get; set; }
+    public int position { get; set; }
+    public int deviceid { get; set; }
     public virtual Device Device { get; set; } = null!;
 }
 ```

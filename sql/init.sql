@@ -1,152 +1,150 @@
 
+-- Create schema if it doesn't exist
+CREATE SCHEMA IF NOT EXISTS "${DEVICE_SCHEMA}";
+
+-- Set search path to use the schema
+SET search_path TO "${DEVICE_SCHEMA}";
+
 -- Drop existing tables if they exist to ensure a clean slate
-DROP TABLE IF EXISTS "Pin", "Connector", "Device", "DeviceTemplate", "DataPoint", "DeviceType", "DataPointIcon", "DeviceTemplateCommunication", "DeviceTemplateAuthentication", "DeviceTemplatePower", "DeviceClaim" CASCADE;
+DROP TABLE IF EXISTS pins, connectors, devices, devicetemplates, datapoints, devicetypes, datapointicons CASCADE;
 
--- Create DeviceType table
-CREATE TABLE "DeviceType" (
-    "DeviceTypeId" SERIAL PRIMARY KEY,
-    "Name" VARCHAR(255) NOT NULL
+-- Create devicetypes table
+CREATE TABLE IF NOT EXISTS devicetypes (
+    devicetypeid SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL
 );
 
--- Create DeviceTemplate table
-CREATE TABLE "DeviceTemplate" (
-    "DeviceTemplateId" SERIAL PRIMARY KEY,
-    "Name" VARCHAR(255) NOT NULL,
-    "Model" VARCHAR(255) NOT NULL,
-    "Description" TEXT,
-    "Image" BYTEA,
-    "DeviceTypeId" INT NOT NULL,
-    FOREIGN KEY ("DeviceTypeId") REFERENCES "DeviceType"("DeviceTypeId")
+-- Create devicetemplates table
+CREATE TABLE IF NOT EXISTS devicetemplates (
+    devicetemplateid SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    model VARCHAR(255) NOT NULL,
+    description TEXT,
+    image BYTEA,
+    devicetypeid INT NOT NULL,
+    FOREIGN KEY (devicetypeid) REFERENCES devicetypes(devicetypeid)
 );
 
--- Create Device table
-CREATE TABLE "Device" (
-    "DeviceId" SERIAL PRIMARY KEY,
-    "DeviceName" VARCHAR(255) NOT NULL,
-    "DeviceTemplateId" INT NOT NULL,
-    "ClaimingCode" VARCHAR(255) NOT NULL,
-    "SerialNumber" VARCHAR(255),
-    "Uuid" VARCHAR(255),
-    "MacAddress" VARCHAR(255),
-    "IpAddress" VARCHAR(255),
-    "PcbVersion" VARCHAR(255),
-    FOREIGN KEY ("DeviceTemplateId") REFERENCES "DeviceTemplate"("DeviceTemplateId")
+-- Create devices table
+CREATE TABLE IF NOT EXISTS devices (
+    deviceid SERIAL PRIMARY KEY,
+    devicename VARCHAR(255) NOT NULL,
+    devicetemplateid INT NOT NULL,
+    claimingcode VARCHAR(255) NOT NULL,
+    serialnumber VARCHAR(255),
+    uuid VARCHAR(255),
+    macaddress VARCHAR(255),
+    ipaddress VARCHAR(255),
+    pcbversion VARCHAR(255),
+    FOREIGN KEY (devicetemplateid) REFERENCES devicetemplates(devicetemplateid)
 );
 
--- Create Connector table
-CREATE TABLE "Connector" (
-    "ConnectorId" SERIAL PRIMARY KEY,
-    "ControllerId" INT NOT NULL,
-    "ConnectorNumber" INT NOT NULL CHECK ("ConnectorNumber" >= 1 AND "ConnectorNumber" <= 5),
-    "ConnectorTypeId" INT, -- Assuming ConnectorType table would exist in a full schema
-    FOREIGN KEY ("ControllerId") REFERENCES "Device"("DeviceId")
+-- Create connectors table
+CREATE TABLE IF NOT EXISTS connectors (
+    connectorid SERIAL PRIMARY KEY,
+    controllerid INT NOT NULL,
+    connectornumber INT NOT NULL CHECK (connectornumber >= 1 AND connectornumber <= 5),
+    connectortypeid INT,
+    FOREIGN KEY (controllerid) REFERENCES devices(deviceid)
 );
 
--- Create Pin table
-CREATE TABLE "Pin" (
-    "PinId" SERIAL PRIMARY KEY,
-    "ConnectorId" INT NOT NULL,
-    "Position" INT NOT NULL,
-    "DeviceId" INT NOT NULL,
-    FOREIGN KEY ("ConnectorId") REFERENCES "Connector"("ConnectorId"),
-    FOREIGN KEY ("DeviceId") REFERENCES "Device"("DeviceId")
+-- Create pins table
+CREATE TABLE IF NOT EXISTS pins (
+    pinid SERIAL PRIMARY KEY,
+    connectorid INT NOT NULL,
+    position INT NOT NULL,
+    deviceid INT NOT NULL,
+    FOREIGN KEY (connectorid) REFERENCES connectors(connectorid),
+    FOREIGN KEY (deviceid) REFERENCES devices(deviceid)
 );
 
--- Create DataPointIcon table
-CREATE TABLE "DataPointIcon" (
-    "DataPointIconId" SERIAL PRIMARY KEY,
-    "IconName" VARCHAR(255) NOT NULL
+-- Create datapointicons table
+CREATE TABLE IF NOT EXISTS datapointicons (
+    datapointiconid SERIAL PRIMARY KEY,
+    iconname VARCHAR(255) NOT NULL
 );
 
--- Create DataPoint table
-CREATE TABLE "DataPoint" (
-    "DataPointId" SERIAL PRIMARY KEY,
-    "DeviceTemplateId" INT NOT NULL,
-    "Label" VARCHAR(255) NOT NULL,
-    "DataPointIconId" INT NOT NULL,
-    "DataFormat" VARCHAR(50) NOT NULL, -- e.g., 'Int16', 'Uint16'
-    "DataEncoding" VARCHAR(50),
-    "Offset" INT NOT NULL,
-    "Length" INT NOT NULL,
-    "Prepend" VARCHAR(50) DEFAULT '',
-    "Append" VARCHAR(50) DEFAULT '',
-    "WholeNumber" INT DEFAULT 0,
-    "Decimals" INT DEFAULT 0,
-    "RealTimeChart" VARCHAR(50),
-    "HistoricalChart" VARCHAR(50),
-    FOREIGN KEY ("DeviceTemplateId") REFERENCES "DeviceTemplate"("DeviceTemplateId"),
-    FOREIGN KEY ("DataPointIconId") REFERENCES "DataPointIcon"("DataPointIconId")
+-- Create datapoints table
+CREATE TABLE IF NOT EXISTS datapoints (
+    datapointid SERIAL PRIMARY KEY,
+    devicetemplateid INT NOT NULL,
+    label VARCHAR(255) NOT NULL,
+    datapointiconid INT NOT NULL,
+    dataformat VARCHAR(50) NOT NULL,
+    dataencoding VARCHAR(50),
+    offset INT NOT NULL,
+    length INT NOT NULL,
+    prepend VARCHAR(50) DEFAULT '',
+    append VARCHAR(50) DEFAULT '',
+    wholenumber INT DEFAULT 0,
+    decimals INT DEFAULT 0,
+    realtimechart VARCHAR(50),
+    historicalchart VARCHAR(50),
+    FOREIGN KEY (devicetemplateid) REFERENCES devicetemplates(devicetemplateid),
+    FOREIGN KEY (datapointiconid) REFERENCES datapointicons(datapointiconid)
 );
 
 -- Insert sample data to match the simulation and processing logic
-
--- Device Types
-INSERT INTO "DeviceType" ("Name") VALUES ('Controller'), ('Sensor'), ('Power Monitor');
-
--- Data Point Icons
-INSERT INTO "DataPointIcon" ("IconName") VALUES ('Temperature'), ('Humidity'), ('Pressure'), ('Voltage'), ('Current'), ('CO2');
-
 -- Device Templates
-INSERT INTO "DeviceTemplate" ("Name", "Model", "Description", "DeviceTypeId") VALUES 
-('F2 Controller', 'F2-rev1', 'Main controller board', 1),
+INSERT INTO "VtDevice".devicetemplates (name, model, description, devicetypeid) VALUES 
 ('Environmental Sensor', 'ENV-S1', 'Environmental Sensor for Temp, Humidity, and CO2', 2),
 ('Power Monitor', 'PM-100', 'Power Monitoring Unit for Voltage and Current', 3);
 
 -- Devices (Controllers and Sensors)
 -- Controllers (MAC addresses without f2- prefix for database storage)
-INSERT INTO "Device" ("DeviceName", "DeviceTemplateId", "ClaimingCode", "MacAddress") VALUES 
+INSERT INTO "VtDevice".devices (devicename, devicetemplateid, claimingcode, macaddress) VALUES 
 ('F2 Controller 1', 1, 'claim-abc', 'aabbccddee01'),
 ('F2 Controller 2', 1, 'claim-def', 'aabbccddee02'),
 ('F2 Controller 3', 1, 'claim-ghi', 'aabbccddee03'),
 ('F2 Controller 4', 1, 'claim-jkl', 'aabbccddee04');
 
 -- Sensors
-INSERT INTO "Device" ("DeviceName", "DeviceTemplateId", "ClaimingCode") VALUES 
+INSERT INTO "VtDevice".devices (devicename, devicetemplateid, claimingcode) VALUES 
 ('Living Room Env Sensor', 2, 'claim-env1'),
 ('Kitchen Power Monitor', 3, 'claim-pm1'),
 ('Bedroom Env Sensor', 2, 'claim-env2');
 
 -- Connectors for the Controllers (J1-J4 for each controller)
-INSERT INTO "Connector" ("ControllerId", "ConnectorNumber") VALUES 
+INSERT INTO "VtDevice".connectors (controllerid, connectornumber, connectortypeid) VALUES 
 -- Controller 1 connectors
-((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee01'), 1),
-((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee01'), 2),
-((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee01'), 3),
-((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee01'), 4),
+((SELECT deviceid FROM "VtDevice".devices WHERE macaddress = 'aabbccddee01'), 1, 3),
+((SELECT deviceid FROM "VtDevice".devices WHERE macaddress = 'aabbccddee01'), 2, 3),
+((SELECT deviceid FROM "VtDevice".devices WHERE macaddress = 'aabbccddee01'), 3, 3),
+((SELECT deviceid FROM "VtDevice".devices WHERE macaddress = 'aabbccddee01'), 4, 3),
 -- Controller 2 connectors
-((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee02'), 1),
-((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee02'), 2),
-((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee02'), 3),
-((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee02'), 4),
+((SELECT deviceid FROM "VtDevice".devices WHERE macaddress = 'aabbccddee02'), 1, 3),
+((SELECT deviceid FROM "VtDevice".devices WHERE macaddress = 'aabbccddee02'), 2, 3),
+((SELECT deviceid FROM "VtDevice".devices WHERE macaddress = 'aabbccddee02'), 3, 3),
+((SELECT deviceid FROM "VtDevice".devices WHERE macaddress = 'aabbccddee02'), 4, 3),
 -- Controller 3 connectors
-((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee03'), 1),
-((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee03'), 2),
-((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee03'), 3),
-((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee03'), 4),
+((SELECT deviceid FROM "VtDevice".devices WHERE macaddress = 'aabbccddee03'), 1, 3),
+((SELECT deviceid FROM "VtDevice".devices WHERE macaddress = 'aabbccddee03'), 2, 3),
+((SELECT deviceid FROM "VtDevice".devices WHERE macaddress = 'aabbccddee03'), 3, 3),
+((SELECT deviceid FROM "VtDevice".devices WHERE macaddress = 'aabbccddee03'), 4, 3),
 -- Controller 4 connectors
-((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee04'), 1),
-((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee04'), 2),
-((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee04'), 3),
-((SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee04'), 4);
+((SELECT deviceid FROM "VtDevice".devices WHERE macaddress = 'aabbccddee04'), 1, 3),
+((SELECT deviceid FROM "VtDevice".devices WHERE macaddress = 'aabbccddee04'), 2, 3),
+((SELECT deviceid FROM "VtDevice".devices WHERE macaddress = 'aabbccddee04'), 3, 3),
+((SELECT deviceid FROM "VtDevice".devices WHERE macaddress = 'aabbccddee04'), 4, 3);
 
 -- Pins: mapping sensors to controller connectors
-INSERT INTO "Pin" ("ConnectorId", "Position", "DeviceId") VALUES 
+INSERT INTO "VtDevice".pins (connectorid, position, deviceid) VALUES 
 -- Controller 1, Connector 1, Pin 1 -> Living Room Env Sensor
-((SELECT "ConnectorId" FROM "Connector" WHERE "ControllerId" = (SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee01') AND "ConnectorNumber" = 1), 1, (SELECT "DeviceId" FROM "Device" WHERE "DeviceName" = 'Living Room Env Sensor')),
+((SELECT connectorid FROM "VtDevice".connectors WHERE controllerid = (SELECT deviceid FROM "VtDevice".devices WHERE macaddress = 'aabbccddee01') AND connectornumber = 1), 1, (SELECT deviceid FROM "VtDevice".devices WHERE devicename = 'Living Room Env Sensor')),
 -- Controller 2, Connector 2, Pin 2 -> Kitchen Power Monitor
-((SELECT "ConnectorId" FROM "Connector" WHERE "ControllerId" = (SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee02') AND "ConnectorNumber" = 2), 2, (SELECT "DeviceId" FROM "Device" WHERE "DeviceName" = 'Kitchen Power Monitor')),
+((SELECT connectorid FROM "VtDevice".connectors WHERE controllerid = (SELECT deviceid FROM "VtDevice".devices WHERE macaddress = 'aabbccddee02') AND connectornumber = 2), 2, (SELECT deviceid FROM "VtDevice".devices WHERE devicename = 'Kitchen Power Monitor')),
 -- Controller 3, Connector 4, Pin 3 -> Bedroom Env Sensor
-((SELECT "ConnectorId" FROM "Connector" WHERE "ControllerId" = (SELECT "DeviceId" FROM "Device" WHERE "MacAddress" = 'aabbccddee03') AND "ConnectorNumber" = 4), 3, (SELECT "DeviceId" FROM "Device" WHERE "DeviceName" = 'Bedroom Env Sensor'));
+((SELECT connectorid FROM "VtDevice".connectors WHERE controllerid = (SELECT deviceid FROM "VtDevice".devices WHERE macaddress = 'aabbccddee03') AND connectornumber = 4), 3, (SELECT deviceid FROM "VtDevice".devices WHERE devicename = 'Bedroom Env Sensor'));
 
 -- Data Points for the Sensor Templates
 -- Environmental Sensor
-INSERT INTO "DataPoint" ("DeviceTemplateId", "Label", "DataPointIconId", "DataFormat", "DataEncoding", "Offset", "Length", "Decimals", "Append") VALUES
-((SELECT "DeviceTemplateId" FROM "DeviceTemplate" WHERE "Name" = 'Environmental Sensor'), 'Temperature', 1, 'numeric', 'Int16', 6, 2, 2, ' °C'),
-((SELECT "DeviceTemplateId" FROM "DeviceTemplate" WHERE "Name" = 'Environmental Sensor'), 'Humidity', 2, 'numeric', 'Uint16', 8, 2, 2, ' %'),
-((SELECT "DeviceTemplateId" FROM "DeviceTemplate" WHERE "Name" = 'Environmental Sensor'), 'CO2', 6, 'numeric', 'Uint16', 10, 2, 0, ' ppm');
+INSERT INTO "VtDevice".datapoints (devicetemplateid, "label", datapointiconid, dataformat, dataencoding, "offset", length, decimals, prepend, append, realtimechart, historicalchart) VALUES
+((SELECT devicetemplateid FROM "VtDevice".devicetemplates WHERE name = 'Environmental Sensor'), 'Temperature', 10, 0, 'Int16', 6, 2, 2, '', ' °C', 'gauge', 'line'),
+((SELECT devicetemplateid FROM "VtDevice".devicetemplates WHERE name = 'Environmental Sensor'), 'Humidity', 5, 0, 'Uint16', 8, 2, 2, '', ' %', 'gauge', 'line'),
+((SELECT devicetemplateid FROM "VtDevice".devicetemplates WHERE name = 'Environmental Sensor'), 'CO2', 3, 0, 'Uint16', 10, 2, 0, '',  ' ppm', 'gauge', 'line');
 
 -- Power Monitor
-INSERT INTO "DataPoint" ("DeviceTemplateId", "Label", "DataPointIconId", "DataFormat", "DataEncoding", "Offset", "Length", "Decimals", "Append") VALUES
-((SELECT "DeviceTemplateId" FROM "DeviceTemplate" WHERE "Name" = 'Power Monitor'), 'Voltage', 4, 'numeric', 'Uint16', 0, 2, 1, ' V'),
-((SELECT "DeviceTemplateId" FROM "DeviceTemplate" WHERE "Name" = 'Power Monitor'), 'Current', 5, 'numeric', 'Int16', 2, 2, 3, ' A');
+INSERT INTO "VtDevice".datapoints (devicetemplateid, "label", datapointiconid, dataformat, dataencoding, "offset", length, decimals, prepend, append, realtimechart, historicalchart) VALUES
+((SELECT devicetemplateid FROM "VtDevice".devicetemplates WHERE name = 'Power Monitor'), 'Voltage', 2, 0, 'Uint16', 0, 2, 1, '',  ' V',  'gauge', 'line'),
+((SELECT devicetemplateid FROM "VtDevice".devicetemplates WHERE name = 'Power Monitor'), 'Current', 2, 0, 'Int16', 2, 2, 3,'',  ' A',  'gauge', 'line');
 

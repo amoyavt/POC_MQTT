@@ -28,13 +28,13 @@ class DecodedData(BaseModel):
     
     Attributes:
         timestamp: When the measurement was taken
-        device_id: Integer ID mapped from MAC address via PostgreSQL lookup
-        datapoint_id: Integer ID mapped from datapoint label via PostgreSQL lookup
+        deviceid: Integer ID mapped from MAC address via PostgreSQL lookup
+        datapointid: Integer ID mapped from datapoint label via PostgreSQL lookup
         value: Numeric measurement value
     """
     timestamp: datetime
-    device_id: int
-    datapoint_id: int
+    deviceid: int
+    datapointid: int
     value: Optional[float] = None
     
     @field_validator('timestamp', mode='before')
@@ -57,8 +57,8 @@ class DecodedData(BaseModel):
         """Return a dictionary representation suitable for TimescaleDB insertion."""
         return {
             'timestamp': self.timestamp,
-            'device_id': self.device_id,
-            'datapoint_id': self.datapoint_id,
+            'deviceid': self.deviceid,
+            'datapointid': self.datapointid,
             'value': self.value
         }
     
@@ -74,13 +74,13 @@ class DeviceLookup(BaseModel):
     Used for mapping MAC addresses to device IDs in the PostgreSQL metadata database.
     
     Attributes:
-        mac_address: MAC address of the device
-        device_id: Integer ID of the device
-        device_name: Human-readable name of the device
+        macaddress: MAC address of the device
+        deviceid: Integer ID of the device
+        devicename: Human-readable name of the device
     """
-    mac_address: str
-    device_id: int
-    device_name: str
+    macaddress: str
+    deviceid: int
+    devicename: str
     
     class Config:
         """Pydantic configuration for the model."""
@@ -94,13 +94,13 @@ class DataPointLookup(BaseModel):
     Used for mapping datapoint labels to datapoint IDs in the PostgreSQL metadata database.
     
     Attributes:
-        datapoint_id: Integer ID of the datapoint
+        datapointid: Integer ID of the datapoint
         label: Human-readable label of the datapoint
-        device_template_id: ID of the device template this datapoint belongs to
+        devicetemplateid: ID of the device template this datapoint belongs to
     """
-    datapoint_id: int
+    datapointid: int
     label: str
-    device_template_id: int
+    devicetemplateid: int
     
     class Config:
         """Pydantic configuration for the model."""

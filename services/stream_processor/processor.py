@@ -52,6 +52,7 @@ class StreamProcessor:
         self.postgres_user = os.getenv('POSTGRES_USER', 'iot_user')
         self.postgres_password = os.getenv('POSTGRES_PASSWORD', 'iot_password')
         self.postgres_db = os.getenv('POSTGRES_DB', 'iot_metadata')
+        self.device_schema = os.getenv('DEVICE_SCHEMA', 'VtDevice')
         
         # Redis Configuration
         self.redis_host = os.getenv('REDIS_HOST', 'redis')
@@ -127,7 +128,11 @@ class StreamProcessor:
                 database=self.postgres_db,
                 port=5432
             )
-            logger.info(f"PostgreSQL connected to {self.postgres_host}:{self.postgres_db}")
+            # Set search path to use the device schema
+            with self.postgres_conn.cursor() as cursor:
+                cursor.execute(f'SET search_path TO "{self.device_schema}"')
+            self.postgres_conn.commit()
+            logger.info(f"PostgreSQL connected to {self.postgres_host}:{self.postgres_db} using schema '{self.device_schema}'")
         except Exception as e:
             logger.error(f"Failed to connect to PostgreSQL: {e}")
             raise
@@ -174,7 +179,7 @@ class StreamProcessor:
             self.cache_misses += 1
             with self.postgres_conn.cursor() as cursor:
                 cursor.execute(
-                    "SELECT \"DeviceId\" FROM \"Device\" WHERE \"MacAddress\" = %s",
+                    "SELECT deviceid FROM \"VtDevice\".devices WHERE macaddress = %s",
                     (clean_mac,)
                 )
                 result = cursor.fetchone()
@@ -241,23 +246,23 @@ class StreamProcessor:
                 # Complex query to find connected sensor and its datapoints with metadata
                 cursor.execute("""
                     SELECT 
-                        pin."DeviceId" as sensor_device_id,
-                        dp."DataPointId",
-                        dp."Label",
-                        dt."Name" as device_template_name,
-                        dp."DataEncoding",
-                        dp."Offset",
-                        dp."Length",
-                        dp."Decimals"
-                    FROM "Connector" c
-                    JOIN "Pin" pin ON c."ConnectorId" = pin."ConnectorId"
-                    JOIN "Device" sensor_dev ON pin."DeviceId" = sensor_dev."DeviceId" 
-                    JOIN "DeviceTemplate" dt ON sensor_dev."DeviceTemplateId" = dt."DeviceTemplateId"
-                    JOIN "DataPoint" dp ON dt."DeviceTemplateId" = dp."DeviceTemplateId"
-                    WHERE c."ControllerId" = %s 
-                        AND c."ConnectorNumber" = %s
-                        AND pin."Position" = %s
-                    ORDER BY dp."DataPointId"
+                        pin.deviceid as sensor_device_id,
+                        dp.datapointid,
+                        dp.label,
+                        dt.name as device_template_name,
+                        dp.dataencoding,
+                        dp.offset,
+                        dp.length,
+                        dp.decimals
+                    FROM "VtDevice".connectors c
+                    JOIN "VtDevice".pins pin ON c.connectorid = pin.connectorid
+                    JOIN "VtDevice".devices sensor_dev ON pin.deviceid = sensor_dev.deviceid 
+                    JOIN "VtDevice".devicetemplates dt ON sensor_dev.devicetemplateid = dt.devicetemplateid
+                    JOIN "VtDevice".datapoints dp ON dt.devicetemplateid = dp.devicetemplateid
+                    WHERE c.controllerid = %s 
+                        AND c.connectornumber = %s
+                        AND pin.position = %s
+                    ORDER BY dp.datapointid
                 """, (controller_device_id, connector_number, sensor_number))
                 
                 results = cursor.fetchall()
@@ -308,9 +313,9 @@ class StreamProcessor:
             # Query database
             with self.postgres_conn.cursor() as cursor:
                 cursor.execute("""
-                    SELECT "DataEncoding", "Offset", "Length", "Decimals", "Label"
-                    FROM "DataPoint" 
-                    WHERE "DataPointId" = %s
+                    SELECT dataencoding, offset, length, decimals, label
+                    FROM "VtDevice".datapoints 
+                    WHERE datapointid = %s
                 """, (datapoint_id,))
                 
                 result = cursor.fetchone()
@@ -504,8 +509,8 @@ class StreamProcessor:
             # not the controller device
             processed_data = {
                 'timestamp': message.get('timestamp', datetime.now().isoformat()),
-                'device_id': sensor_device_id,  # Use sensor device ID, not controller
-                'datapoint_id': datapoint_id,
+                'deviceid': sensor_device_id,  # Use sensor device ID, not controller
+                'datapointid': datapoint_id,
                 'value': value,
                 # Add metadata for debugging
                 'controller_device_id': controller_device_id,
@@ -559,7 +564,7 @@ class StreamProcessor:
                                     # Send to processed topic
                                     future = self.kafka_producer.send(
                                         self.kafka_processed_topic,
-                                        key=str(processed_data['device_id']),
+                                        key=str(processed_data['deviceid']),
                                         value=processed_data
                                     )
                                     

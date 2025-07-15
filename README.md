@@ -136,10 +136,10 @@ The `decoded_data` table uses integer IDs for space efficiency:
 ```sql
 CREATE TABLE decoded_data (
     timestamp TIMESTAMPTZ NOT NULL,
-    device_id INTEGER NOT NULL,
-    datapoint_id INTEGER NOT NULL,
+    deviceid INTEGER NOT NULL,
+    datapointid INTEGER NOT NULL,
     value DOUBLE PRECISION,
-    PRIMARY KEY (timestamp, device_id, datapoint_id)
+    PRIMARY KEY (timestamp, deviceid, datapointid)
 );
 ```
 
@@ -161,41 +161,41 @@ The Stream Processor implements a sophisticated data transformation that follows
 #### **Step 1: Controller Resolution**
 - Extract MAC address from MQTT topic: `f2-aabbccddee01`
 - Remove `f2-` prefix: `aabbccddee01`
-- Query `Device` table to get controller `DeviceId`
+- Query `"VtDevice".devices` table to get controller `deviceid`
 
 #### **Step 2: Connector Mapping**
 - Extract connector from topic: `J1`, `J2`, `J3`, `J4`
 - Map to connector number: `J1→1`, `J2→2`, etc.
-- Query `Connector` table: `WHERE ControllerId = ? AND ConnectorNumber = ?`
+- Query `"VtDevice".connectors` table: `WHERE controllerid = ? AND connectornumber = ?`
 
 #### **Step 3: Pin and Sensor Resolution**  
 - Extract sensor number from component: `sensor-1` → position `1`
-- Query `Pin` table: `WHERE ConnectorId = ? AND Position = ?`
-- Get connected sensor `DeviceId` from Pin record
+- Query `"VtDevice".pins` table: `WHERE connectorid = ? AND position = ?`
+- Get connected sensor `deviceid` from Pin record
 
 #### **Step 4: DataPoint Mapping**
-- Get sensor's `DeviceTemplateId` from `Device` table
-- Query `DataPoint` table: `WHERE DeviceTemplateId = ?`
+- Get sensor's `devicetemplateid` from `"VtDevice".devices` table
+- Query `"VtDevice".datapoints` table: `WHERE devicetemplateid = ?`
 - Select appropriate datapoint based on sensor position and type
 
 #### **Step 5: Data Attribution**
 - Attribute final data to **sensor device**, not controller
-- Use sensor's `DeviceId` and `DataPointId` for storage
+- Use sensor's `deviceid` and `datapointid` for storage
 - Preserve controller metadata for debugging and traceability
 
 #### **Example Data Flow**
 ```
 Topic: tele/f2-aabbccddee01/sensor-mode/J1/sensor-1
 ↓
-Controller: aabbccddee01 → DeviceId: 1 (F2 Controller 1)
+Controller: aabbccddee01 → deviceid: 1 (F2 Controller 1)
 ↓  
-Connector: J1 → ConnectorNumber: 1 → ConnectorId: 1
+Connector: J1 → connectornumber: 1 → connectorid: 1
 ↓
-Pin: Position 1 → DeviceId: 5 (Living Room Env Sensor)
+Pin: position 1 → deviceid: 5 (Living Room Env Sensor)
 ↓
-DataPoint: DeviceTemplateId: 2 → DataPointId: 1 (Temperature)
+DataPoint: devicetemplateid: 2 → datapointid: 1 (Temperature)
 ↓
-Final Record: device_id=5, datapoint_id=1, value=23.5°C
+Final Record: deviceid=5, datapointid=1, value=23.5°C
 ```
 
 This architecture enables:
@@ -225,7 +225,7 @@ This architecture enables:
 - **Connection Pooling**: Optimized database connections
 
 ### Space Efficiency
-- **Integer IDs**: Use device_id and datapoint_id instead of strings
+- **Integer IDs**: Use deviceid and datapointid instead of strings
 - **Hypertables**: TimescaleDB partitioning for time-series data
 - **Compression**: Configurable compression policies
 - **Retention**: Data retention policies for space management
@@ -291,7 +291,7 @@ docker-compose up -d stream-processor kafka-timescale-sink mqtt-kafka-connector
 
 **Solution**: Verify database contains correct MAC addresses:
 ```bash
-docker exec postgresql psql -U postgres -d db -c "SELECT \"MacAddress\" FROM \"Device\";"
+docker exec postgresql psql -U postgres -d db -c "SELECT macaddress FROM \"VtDevice\".devices;"
 ```
 
 Should show: `aabbccddee01`, `aabbccddee02`, etc. (without `f2-` prefix)
