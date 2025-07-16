@@ -82,7 +82,7 @@ CREATE TABLE "VtDevice".datapoints (
 -- Insert sample data to match the simulation and processing logic
 -- Device Templates
 INSERT INTO "VtDevice".devicetemplates (name, model, description, devicetypeid) VALUES 
-('Environmental Sensor', 'ENV-S1', 'Environmental Sensor for Temp, Humidity, and CO2', 2),
+('Environmental Sensor', 'ENV-S1', 'Environmental Sensor for Temp, Humidity, and CO2', 4),
 ('Power Monitor', 'PM-100', 'Power Monitoring Unit for Voltage and Current', 3);
 
 -- Devices (Controllers and Sensors)
@@ -135,11 +135,11 @@ INSERT INTO "VtDevice".pins (connectorid, position, deviceid) VALUES
 -- Environmental Sensor
 INSERT INTO "VtDevice".datapoints (devicetemplateid, "label", datapointiconid, dataformat, dataencoding, "offset", length, decimals, prepend, append, realtimechart, historicalchart) VALUES
 ((SELECT devicetemplateid FROM "VtDevice".devicetemplates WHERE name = 'Environmental Sensor'), 'Temperature', 10, 0, 'Int16', 6, 2, 2, '', ' °C', 'gauge', 'line'),
-((SELECT devicetemplateid FROM "VtDevice".devicetemplates WHERE name = 'Environmental Sensor'), 'Humidity', 5, 0, 'Uint16', 8, 2, 2, '', ' %', 'gauge', 'line'),
-((SELECT devicetemplateid FROM "VtDevice".devicetemplates WHERE name = 'Environmental Sensor'), 'CO2', 3, 0, 'Uint16', 10, 2, 0, '',  ' ppm', 'gauge', 'line');
+((SELECT devicetemplateid FROM "VtDevice".devicetemplates WHERE name = 'Environmental Sensor'), 'Humidity', 5, 0, 'Int16', 8, 2, 2, '', ' %', 'gauge', 'line'),
+((SELECT devicetemplateid FROM "VtDevice".devicetemplates WHERE name = 'Environmental Sensor'), 'CO2', 3, 0, 'Int16', 10, 2, 0, '',  ' ppm', 'gauge', 'line');
 
 -- Power Monitor
 INSERT INTO "VtDevice".datapoints (devicetemplateid, "label", datapointiconid, dataformat, dataencoding, "offset", length, decimals, prepend, append, realtimechart, historicalchart) VALUES
-((SELECT devicetemplateid FROM "VtDevice".devicetemplates WHERE name = 'Power Monitor'), 'Voltage', 2, 0, 'Uint16', 0, 2, 1, '',  ' V',  'gauge', 'line'),
+((SELECT devicetemplateid FROM "VtDevice".devicetemplates WHERE name = 'Power Monitor'), 'Voltage', 2, 0, 'Int16', 0, 2, 1, '',  ' V',  'gauge', 'line'),
 ((SELECT devicetemplateid FROM "VtDevice".devicetemplates WHERE name = 'Power Monitor'), 'Current', 2, 0, 'Int16', 2, 2, 3,'',  ' A',  'gauge', 'line');
 

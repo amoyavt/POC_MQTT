@@ -136,9 +136,9 @@ services:
     image: timescale/timescaledb:latest-pg15
     container_name: timescaledb
     environment:
-      - POSTGRES_USER=${TIMESCALE_USER:-postgres}
+      - POSTGRES_USER=${TIMESCALE_USER:-timescale}
       - POSTGRES_PASSWORD=${TIMESCALE_PASSWORD:-password}
-      - POSTGRES_DB=${TIMESCALE_DB:-timescaledb}
+      - POSTGRES_DB=${TIMESCALE_DB:-timeseries}
     volumes:
       - ./sql/timescale_init.sql:/docker-entrypoint-initdb.d/init.sql
       - timescaledb_data:/var/lib/postgresql/data
