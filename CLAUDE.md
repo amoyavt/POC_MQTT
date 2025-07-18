@@ -171,3 +171,96 @@ CREATE TABLE decoded_data (
 ```
 
 This schema uses integer IDs instead of string labels for significant space savings and improved query performance.
+
+### Kafka Log Compaction
+
+The `processed-iot-data` topic uses log compaction to serve as a durable, queryable source for the "last known state" of every data point:
+
+**Configuration:**
+- `cleanup.policy=compact`: Retains only the latest message per key
+- `min.cleanable.dirty.ratio=0.1`: More aggressive compaction (default: 0.5)
+- `segment.ms=60000`: Faster segment creation for quicker compaction
+
+**Composite Keying:**
+- Stream processor uses `{device_id}:{datapoint_id}` format (e.g., `"5:1"`)
+- Ensures each sensor data point has a unique key for log compaction
+- Enables efficient last-known-state queries by reading entire topic
+
+**Automatic Configuration:**
+- Kafka service automatically applies log compaction settings on startup
+- Configuration survives container restarts and rebuilds
+
+## Docker Development Troubleshooting
+
+### Cross-Platform Line Ending Issues
+
+**Problem:** Scripts created/edited on Windows have CRLF (`\r\n`) line endings that break bash execution in Linux containers.
+
+**Symptoms:**
+- `exec /path/to/script.sh: no such file or directory` errors
+- Scripts appear to exist but fail to execute
+
+**Solutions:**
+1. **Fix locally in WSL:** `sed -i 's/\r$//' path/to/script.sh`
+2. **IDE settings:** In VSCode, click CRLF in bottom-right → select LF
+3. **Use dos2unix:** `dos2unix path/to/script.sh` (if installed)
+
+### Container Permission Issues
+
+**Problem:** Different Docker base images have varying security models and file system permissions.
+
+**Symptoms:**
+- `chmod: changing permissions of '/path/file': Operation not permitted`
+- `mkdir: cannot create directory '/path': Permission denied`
+- `sed: couldn't open temporary file: Permission denied`
+
+**Solutions:**
+1. **Use COPY --chmod:** `COPY --chmod=755 script.sh /path/script.sh`
+2. **Avoid restricted paths:** Some containers restrict `/usr/local/bin/`, `/app/`, `/home/`
+3. **Check base image docs:** Different images have different writeable directories
+
+### Docker Build Best Practices
+
+**Key Principles:**
+1. **Fix issues at source:** Handle platform-specific problems in development environment, not in containers
+2. **Use proper build contexts:** Keep related files in same directory as Dockerfile
+3. **Test with clean builds:** Use `--no-cache` and `docker-compose down -v` for troubleshooting
+4. **Read error messages carefully:** They often reveal the exact root cause
+
+**Common Patterns:**
+```dockerfile
+# Good: Handle line endings and permissions cleanly
+FROM base-image
+COPY --chmod=755 script.sh /path/script.sh
+ENTRYPOINT ["/path/script.sh"]
+
+# Avoid: Trying to fix line endings in container
+FROM base-image
+COPY script.sh /path/script.sh
+RUN dos2unix /path/script.sh && chmod +x /path/script.sh  # May fail
+```
+
+**Testing Strategy:**
+1. Test each fix individually, not multiple changes at once
+2. Use `docker-compose down -v` to ensure clean state
+3. Verify end-to-end functionality after fixes
+4. Document working solutions for future reference
+
+### Shell Compatibility
+
+**Issue:** Docker RUN commands default to `/bin/sh`, not `/bin/bash`.
+
+**Solutions:**
+1. **Use SHELL directive:** `SHELL ["/bin/bash", "-c"]`
+2. **Write sh-compatible commands:** Avoid bash-specific syntax
+3. **Test commands in both shells:** Ensure compatibility
+
+**Example:**
+```dockerfile
+# If you need bash features
+SHELL ["/bin/bash", "-c"]
+RUN complex_bash_command
+
+# Or keep commands simple for /bin/sh compatibility
+RUN simple_command
+```

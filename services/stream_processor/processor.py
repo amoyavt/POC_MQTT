@@ -562,10 +562,12 @@ class StreamProcessor:
                                 processed_data = self.process_message(message.value)
                                 
                                 if processed_data:
-                                    # Send to processed topic
+                                    # Send to processed topic with composite key for log compaction
+                                    # Key format: "device_id:datapoint_id" for last-known-state queries
+                                    composite_key = f"{processed_data['deviceid']}:{processed_data['datapointid']}"
                                     future = self.kafka_producer.send(
                                         self.kafka_processed_topic,
-                                        key=str(processed_data['deviceid']),
+                                        key=composite_key,
                                         value=processed_data
                                     )
                                     
