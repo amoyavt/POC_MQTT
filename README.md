@@ -15,6 +15,7 @@ This system ingests, processes, and stores IoT data from F2 Smart Controller dev
 - 🔒 **Security First**: mTLS authentication, ACL-based authorization, non-root containers
 - ⚡ **High Performance**: Optimized batching, connection pooling, Redis caching
 - 📊 **Real-time Processing**: Stream processing with Kafka and TimescaleDB
+- 🗄️ **Last-Data Retention**: Kafka log compaction provides durable "last known state" for all sensor data points with composite keying (device_id:datapoint_id)
 - 🐛 **Developer Friendly**: Comprehensive logging, health checks, easy debugging
 - 📈 **Production Ready**: Monitoring, metrics, horizontal scaling support
 
@@ -45,7 +46,14 @@ This system ingests, processes, and stores IoT data from F2 Smart Controller dev
 5. **Apache Kafka** with Zookeeper
    - Stream processing and message queuing
    - Topics: raw-iot-data, processed-iot-data
-   - Port: 9092 (internal Kafka protocol)
+   - Listeners: Internal (kafka:9092) and external (localhost:9092) access
+   - Auto-create topics: Enabled with 3 partitions by default
+   - Replication factor: 1 (single broker setup)
+   - Persistent storage: kafka_data volume for data durability
+   - Log Compaction for "last known state" of processed-iot-data topic:
+     - cleanup.policy=compact: Retains only latest message per key
+     - min.cleanable.dirty.ratio=0.1: Aggressive compaction (vs default 0.5)
+     - segment.ms=60000: Creates new segments every minute for faster compaction
 
 6. **Stream Processor** (`services/stream_processor/`)
    - Real-time data transformation following production database architecture
@@ -143,10 +151,10 @@ The `decoded_data` table uses integer IDs for space efficiency:
 ```sql
 CREATE TABLE decoded_data (
     timestamp TIMESTAMPTZ NOT NULL,
-    deviceid INTEGER NOT NULL,
-    datapointid INTEGER NOT NULL,
+    device_id INTEGER NOT NULL,
+    datapoint_id INTEGER NOT NULL,
     value DOUBLE PRECISION,
-    PRIMARY KEY (timestamp, deviceid, datapointid)
+    PRIMARY KEY (timestamp, device_id, datapoint_id)
 );
 ```
 
