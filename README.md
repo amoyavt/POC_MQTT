@@ -256,6 +256,58 @@ This architecture enables:
 - **MAC Address Consistency**: Simulator uses same MACs as metadata
 - **Easy Debugging**: Comprehensive logging and error handling
 
+## Testing
+
+### Last Known State Retention and Compaction
+
+The `processed-iot-data` topic uses Kafka log compaction to maintain the last known state of each sensor data point. You can verify this functionality using the included .NET test application.
+
+**Connection Details**: The test application connects to Kafka at `localhost:9092` (external port mapping from Docker container).
+
+**Commands**:
+```bash
+# Start the IoT pipeline
+docker-compose up -d
+
+# Run the log compaction test
+cd tests/KafkaLogCompactionTest
+dotnet restore
+dotnet run
+```
+
+**Expected Results**:
+The application displays real-time messages with composite keys in `device_id:datapoint_id` format:
+
+```
+[16:57:46.900] Key: 5:5
+Value: {
+  "timestamp": "2025-07-19T16:57:46.883856",
+  "deviceid": 5,
+  "datapointid": 5,
+  "value": 2339.1,
+  "controller_device_id": 1,
+  "connector": "J1",
+  "component": "sensor-1"
+}
+Partition: 2, Offset: 16
+------------------------------------------------------------
+
+[16:57:46.935] Key: 6:5
+Value: {
+  "timestamp": "2025-07-19T16:57:46.886869",
+  "deviceid": 6,
+  "datapointid": 5,
+  "value": 821.8,
+  "controller_device_id": 2,
+  "connector": "J2",
+  "component": "sensor-2"
+}
+Partition: 2, Offset: 17
+------------------------------------------------------------
+```
+
+With log compaction enabled, only the latest message per key is retained long-term, ensuring each sensor maintains its current state for durable querying.
+
 ## Troubleshooting
 
 ### Kafka Cluster ID Mismatch
